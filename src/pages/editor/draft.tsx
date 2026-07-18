@@ -24,6 +24,19 @@ const initialContent = `
   <p>这个页面用于演示企业级知识库写作闭环：先检索有依据的内容，再把引用摘要插入正文，避免凭空生成。</p>
 `;
 
+function getEditorPlainText(editor: ReturnType<typeof useEditor>) {
+  if (!editor || editor.isDestroyed || !editor.schema?.nodes || !editor.state?.doc) {
+    return '';
+  }
+
+  try {
+    return editor.state.doc.textBetween(0, editor.state.doc.content.size, '\n');
+  } catch (error) {
+    console.warn('Failed to read draft editor text', error);
+    return '';
+  }
+}
+
 export default function DraftEditorPage() {
   const [title, setTitle] = useState('LiveDoc RAG 写作草稿');
   const [ragOpen, setRagOpen] = useState(true);
@@ -39,7 +52,7 @@ export default function DraftEditorPage() {
   });
 
   const stats = useMemo(() => {
-    const text = editor?.getText() || '';
+    const text = getEditorPlainText(editor);
     return {
       words: text.replace(/\s/g, '').length,
       paragraphs: text.split(/\n+/).filter(Boolean).length,

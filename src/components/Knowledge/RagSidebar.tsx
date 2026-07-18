@@ -51,14 +51,31 @@ const visibilityColor: Record<string, string> = {
   public: 'green',
 };
 
+function canReadEditor(editor: Editor | null) {
+  return Boolean(editor && !editor.isDestroyed && editor.schema?.nodes && editor.state?.doc);
+}
+
+function getEditorPlainText(editor: Editor | null) {
+  if (!canReadEditor(editor)) {
+    return '';
+  }
+
+  try {
+    return editor!.state.doc.textBetween(0, editor!.state.doc.content.size, '\n');
+  } catch (error) {
+    console.warn('Failed to read editor text for RAG context', error);
+    return '';
+  }
+}
+
 function pickCursorContext(editor: Editor | null) {
-  if (!editor) {
+  if (!canReadEditor(editor)) {
     return { selectedText: '', before: '', after: '', text: '' };
   }
 
-  const text = editor.getText();
-  const { from, to } = editor.state.selection;
-  const selectedText = from !== to ? editor.state.doc.textBetween(from, to, '\n') : '';
+  const text = getEditorPlainText(editor);
+  const { from, to } = editor!.state.selection;
+  const selectedText = from !== to ? editor!.state.doc.textBetween(from, to, '\n') : '';
   const before = text.slice(Math.max(0, from - 280), from);
   const after = text.slice(to, to + 180);
 
