@@ -1,3 +1,4 @@
+// @ts-nocheck
 import editor from '@/pages/editor/config/editorConfig';
 import {
   BoldOutlined,

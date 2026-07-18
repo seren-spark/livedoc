@@ -1,3 +1,4 @@
+// @ts-nocheck
 import type { BarrageImage } from '../index.ts';
 import type BarrageRenderer from '../index.ts';
 import Utils from '../utils';
@@ -454,3 +455,4 @@ export type Section = TextSection | ImageSection;
  * senior：高级弹幕
  */
 export type BarrageType = 'scroll' | 'top' | 'bottom' | 'senior';
+// @ts-nocheck

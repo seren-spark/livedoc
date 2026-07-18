@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { Editor } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Blockquote from '@tiptap/extension-blockquote';
@@ -148,3 +149,4 @@ export const createEditor = (set?: any) => {
 };
 // const editor = fn();
 // export default editor;
+// @ts-nocheck

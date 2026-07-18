@@ -1,4 +1,4 @@
-import LottieAccess from '@/components/admin/LottieAccess';
+import LottieAccess from '@/components/Admin/LottieAccess';
 
 function NoAccess() {
   return (

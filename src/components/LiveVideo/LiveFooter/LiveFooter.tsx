@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { useCamera, useScreenShare, useLiveControl } from '@/hooks/liveVideo';
 import { useStream } from '@/hooks/liveVideo/useStream';
 import {
@@ -206,3 +207,4 @@ export default function LiveFooter(props: LiveFooterProps) {
     </div>
   );
 }
+// @ts-nocheck

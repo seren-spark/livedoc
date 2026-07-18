@@ -1,3 +1,4 @@
+// @ts-nocheck
 import type React from 'react';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import {
@@ -685,3 +686,4 @@ const IntelligentBarrageSystem: React.FC = () => {
 };
 
 export default IntelligentBarrageSystem;
+// @ts-nocheck

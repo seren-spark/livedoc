@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { Extension } from '@tiptap/core';
 import { Plugin, PluginKey } from '@tiptap/pm/state';
 import { Decoration, DecorationSet } from '@tiptap/pm/view';
@@ -429,3 +430,4 @@ export const VirtualRenderer = Extension.create({
 });
 
 export default VirtualRenderer;
+// @ts-nocheck

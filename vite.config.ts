@@ -36,11 +36,19 @@ export default defineConfig({
       // },
       extensions: ['tsx', 'jsx'],
       // 排除后台相关文件
-      exclude: ['**/admin/**', '**/components/**'],
+      exclude: [
+        '**/admin/**',
+        '**/components/**',
+        '**/danmu-test/**',
+        '**/danmu-test.tsx',
+        '**/live/**',
+        '**/livevideo.tsx',
+        '**/editor/draft-page.tsx',
+        '**/editor/examples/**',
+      ],
       // 自定义路由生成
       onRoutesGenerated: (routes) => {
         // 可以在这里对自动生成的路由进行处理
-        console.log('Generated routes:', routes);
         return routes;
       },
     }),

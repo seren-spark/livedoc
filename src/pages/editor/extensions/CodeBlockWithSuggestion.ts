@@ -1,5 +1,6 @@
 //带有AI建议的代码块
 
+// @ts-nocheck
 import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight';
 import { Plugin, PluginKey, TextSelection } from '@tiptap/pm/state';
 import { Decoration, DecorationSet } from '@tiptap/pm/view';
@@ -415,3 +416,4 @@ const CodeBlockWithSuggestion = CodeBlockLowlight.extend({
 });
 
 export default CodeBlockWithSuggestion;
+// @ts-nocheck

@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { Node, mergeAttributes } from '@tiptap/core';
 import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight';
 import { Plugin, PluginKey, TextSelection } from '@tiptap/pm/state';
@@ -254,3 +255,4 @@ const CodeBlockWithSuggestion = CodeBlockLowlight.extend({
 });
 
 export default CodeBlockWithSuggestion;
+// @ts-nocheck

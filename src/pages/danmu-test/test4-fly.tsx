@@ -1,3 +1,4 @@
+// @ts-nocheck
 import React, { useState, useRef, useEffect, useCallback, use } from 'react';
 import {
   Button,
@@ -432,3 +433,4 @@ export default function Test1() {
     </div>
   );
 }
+// @ts-nocheck

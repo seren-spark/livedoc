@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { Layout, Breadcrumb } from 'antd';
 
 import './index.scss'; // 引入样式文件

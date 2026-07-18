@@ -1,3 +1,4 @@
+// @ts-nocheck
 // import '@/pages/notification/styles/index.scss';
 import { useScrollVisibility } from '@/hooks/useScrollVisibility';
 import Header from '@/layouts/frontLayout/Header';

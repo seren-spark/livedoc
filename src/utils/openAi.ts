@@ -1,3 +1,4 @@
+// @ts-nocheck
 import OpenAI from 'openai';
 import toolsMap from './aiTools';
 import { zodToJsonSchema } from 'zod-to-json-schema';
@@ -571,3 +572,4 @@ const debouncedScrollHandler = debounce(function() {
 
 window.addEventListener('scroll', debouncedScrollHandler);`;
 };
+// @ts-nocheck

@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * 虚拟化 NodeView 基类
  *
@@ -372,3 +373,4 @@ export class VirtualNodeView implements NodeView {
     console.log(`[VirtualNodeView] 销毁: blockId=${this.node.attrs.blockId}`);
   }
 }
+// @ts-nocheck

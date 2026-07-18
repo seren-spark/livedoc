@@ -1,9 +1,9 @@
 // src/components/LoginRequiredButton.jsx
 import type React from 'react';
-import { Button } from 'antd';
+import { Button, type ButtonProps } from 'antd';
 import { useAuth } from '@/contexts/authContext';
-interface LoginRequiredButtonProps {
-  onClick?: () => void;
+interface LoginRequiredButtonProps extends ButtonProps {
+  onClick?: (event: React.MouseEvent<HTMLButtonElement>) => void;
   children?: React.ReactNode;
 }
 // 封装一个“需登录才能点击”的按钮
