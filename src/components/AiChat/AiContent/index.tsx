@@ -11,6 +11,7 @@ import {
   PictureOutlined,
   SearchOutlined,
 } from '@ant-design/icons';
+import { searchKnowledge, type Citation } from '@/api/rag';
 
 interface Message {
   id: string;
@@ -138,8 +139,23 @@ export default function AiContent({ timePeriod, userName }: AiContentProps) {
     setAiType(selectedSkill);
   };
 
+  const formatCitations = (citations: Citation[]) => {
+    if (!citations.length) {
+      return '当前知识库没有检索到相关来源。';
+    }
+
+    return citations
+      .map((item) => {
+        const path = item.heading_path?.length
+          ? `\n路径：${item.heading_path.join(' > ')}`
+          : '';
+        return `[${item.index}] ${item.title}${path}\n${item.content}`;
+      })
+      .join('\n\n');
+  };
+
   // 在 handleMenuClick 函数后添加新对话
-  const handleSendMessage = (message: string) => {
+  const handleSendMessage = async (message: string) => {
     console.log('发送消息：', message);
     if (!message.trim()) return;
 
@@ -154,16 +170,34 @@ export default function AiContent({ timePeriod, userName }: AiContentProps) {
     setChatHistory((prev) => [...prev, newUserMessage]);
     setHasSentFirstMessage(true);
 
-    // 模拟 AI 回复（实际项目中这里应该是调用 API）
-    setTimeout(() => {
+    try {
+      const result = await searchKnowledge({
+        query: message,
+        top_k: 5,
+        scope: {
+          private: true,
+          team: true,
+          public: true,
+        },
+      });
+
       const aiResponse = {
         id: (Date.now() + 1).toString(),
         type: 'assistant' as const,
-        content: `这是对"${message}"的回复`,
+        content: `知识库检索结果：\n\n${formatCitations(result.citations)}`,
         timestamp: new Date(),
       };
       setChatHistory((prev) => [...prev, aiResponse]);
-    }, 1000);
+    } catch (error) {
+      console.warn('RAG search failed, fallback to mock response:', error);
+      const aiResponse = {
+        id: (Date.now() + 1).toString(),
+        type: 'assistant' as const,
+        content: `这是对"${message}"的模拟回复。启动 Python RAG 服务后，这里会返回知识库来源片段。`,
+        timestamp: new Date(),
+      };
+      setChatHistory((prev) => [...prev, aiResponse]);
+    }
   };
 
   return (
