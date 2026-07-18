@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import FuncButton from '../FuncButton';
 import InputArea from '../InputArea';
 import Prompt from '../Prompt';
 import Dialogue from '../Dialogue';
+import { chatWithGPT } from '@/utils/openAi';
 import './index.scss';
 import {
   BookOutlined,
@@ -15,7 +16,7 @@ import { searchKnowledge, type Citation } from '@/api/rag';
 
 interface Message {
   id: string;
-  type: 'user' | 'assistant';
+  role: 'user' | 'assistant';
   content: string;
   timestamp: Date;
 }
@@ -27,71 +28,63 @@ interface AiContentProps {
 
 export default function AiContent({ timePeriod, userName }: AiContentProps) {
   const [aiType, setAiType] = useState<React.ReactNode>(null);
-  const [hasSentFirstMessage, setHasSentFirstMessage] = useState(false);
+  const [hasSentFirstMessage, setHasSentFirstMessage] = useState(true);
   const [chatHistory, setChatHistory] = useState<Message[]>([
-    {
-      id: '1',
-      type: 'user',
-      content: '我有一个问题',
-      timestamp: new Date(),
-    },
-    {
-      id: '2',
-      type: 'assistant',
-      content:
-        '请你把具体的问题描述出来吧～ 无论是知识咨询、问题解答、创意创作还是其他需求，你说得越详细，我就越能准确地帮到你哦！',
-      timestamp: new Date(),
-    },
-    {
-      id: '3',
-      type: 'user',
-      content: '你猜我想问什么',
-      timestamp: new Date(),
-    },
-    {
-      id: '4',
-      type: 'assistant',
-      content:
-        '哈哈，这可有点难猜呢！不过我可以根据常见的问题方向给你一些推测，看看有没有接近的～ 你可能想问：\n\n• 某个知识类问题（比如历史事件、科学原理、生活常识）？\n\n• 学习或工作上的难题（比如作业解答、技能技巧、学习方法）？\n\n• 创意相关的需求（比如文案写作、故事构思、灵感启发）？',
-      timestamp: new Date(),
-    },
-    {
-      id: '5',
-      type: 'user',
-      content:
-        '给一个网站起个名字：学习型网站，类似于稀土掘金和CSDN之类的，可以直播，AI，发布等等',
-      timestamp: new Date(),
-    },
-    {
-      id: '6',
-      type: 'assistant',
-      content: `### 适合学习型技术社区的网站名称推荐
-  结合“学习属性”“技术氛围”及“直播、AI、内容发布”等功能特性，推荐以下名称，兼顾记忆点与行业辨识度：
-
-  1. **技点（Jidian）**
-     - 谐音“知识点”，聚焦技术学习的核心，简洁有力，易传播。
-
-  2. **码课圈（Makequan）**
-     - 融合“代码”“课程”“社区”概念，突出直播授课、圈层交流属性。
-
-  3. **智习社（Zhixishe）**
-     - “智”关联AI智能，“习”强调学习，“社”体现社区属性，传递科技感与社群感。
-
-  4. **掘金坊（Juejin Fang）**
-     - 借鉴“稀土掘金”的“掘金”意象，“坊”字增添互动场景感，暗示内容创作与交流的“工坊”属性。
-
-  5. **学知栈（Xuezhi Zhan）**
-     - “栈”呼应技术领域的“堆栈”概念，寓意知识积累与进阶，同时传递“学习驿站”的温暖感。
-
-  6. **AI码堂（AI Matang）**
-     - 直接点明AI功能与代码学习属性，“堂”字带有直播课堂、技术讲堂的场景联想。
-
-  7. **知播客（Zhiboke）**
-     - 融合“知识”与“播客”，既体现直播功能，又强化“知识传播”的核心定位，易记且适配多场景。
-
-  这些名称均围绕“技术学习”“社区互动”“功能特性”展开，避免生僻字，适合作为兼具内容发布、直播教学、AI辅助的技术学习平台使用。`,
-      timestamp: new Date(),
-    },
+    // {
+    //   id: '1',
+    //   role: 'user',
+    //   content: '我有一个问题',
+    //   timestamp: new Date(),
+    // },
+    // {
+    //   id: '2',
+    //   role: 'assistant',
+    //   content:
+    //     '请你把具体的问题描述出来吧～ 无论是知识咨询、问题解答、创意创作还是其他需求，你说得越详细，我就越能准确地帮到你哦！',
+    //   timestamp: new Date(),
+    // },
+    // {
+    //   id: '3',
+    //   role: 'user',
+    //   content: '你猜我想问什么',
+    //   timestamp: new Date(),
+    // },
+    // {
+    //   id: '4',
+    //   role: 'assistant',
+    //   content:
+    //     '哈哈，这可有点难猜呢！不过我可以根据常见的问题方向给你一些推测，看看有没有接近的～ 你可能想问：\n\n• 某个知识类问题（比如历史事件、科学原理、生活常识）？\n\n• 学习或工作上的难题（比如作业解答、技能技巧、学习方法）？\n\n• 创意相关的需求（比如文案写作、故事构思、灵感启发）？',
+    //   timestamp: new Date(),
+    // },
+    // {
+    //   id: '5',
+    //   role: 'user',
+    //   content:
+    //     '给一个网站起个名字：学习型网站，类似于稀土掘金和CSDN之类的，可以直播，AI，发布等等',
+    //   timestamp: new Date(),
+    // },
+    // {
+    //   id: '6',
+    //   role: 'assistant',
+    //   content: `### 适合学习型技术社区的网站名称推荐
+    //   结合“学习属性”“技术氛围”及“直播、AI、内容发布”等功能特性，推荐以下名称，兼顾记忆点与行业辨识度：\n
+    //   1. **技点（Jidian）**
+    //      - 谐音“知识点”，聚焦技术学习的核心，简洁有力，易传播。
+    //   2. **码课圈（Makequan）**
+    //      - 融合“代码”“课程”“社区”概念，突出直播授课、圈层交流属性。
+    //   3. **智习社（Zhixishe）**
+    //      - “智”关联AI智能，“习”强调学习，“社”体现社区属性，传递科技感与社群感。
+    //   4. **掘金坊（Juejin Fang）**
+    //      - 借鉴“稀土掘金”的“掘金”意象，“坊”字增添互动场景感，暗示内容创作与交流的“工坊”属性。
+    //   5. **学知栈（Xuezhi Zhan）**
+    //      - “栈”呼应技术领域的“堆栈”概念，寓意知识积累与进阶，同时传递“学习驿站”的温暖感。
+    //   6. **AI码堂（AI Matang）**
+    //      - 直接点明AI功能与代码学习属性，“堂”字带有直播课堂、技术讲堂的场景联想。
+    //   7. **知播客（Zhiboke）**
+    //      - 融合“知识”与“播客”，既体现直播功能，又强化“知识传播”的核心定位，易记且适配多场景。
+    //   这些名称均围绕“技术学习”“社区互动”“功能特性”展开，避免生僻字，适合作为兼具内容发布、直播教学、AI辅助的技术学习平台使用。`,
+    //   timestamp: new Date(),
+    // },
   ]);
 
   // AI扩展功能
@@ -155,14 +148,18 @@ export default function AiContent({ timePeriod, userName }: AiContentProps) {
   };
 
   // 在 handleMenuClick 函数后添加新对话
+  const [msgLoading, setMsgLoading] = useState(false);
+  const currentResponseRef = useRef('');
+  const [currentMessage, setCurrentMessage] = useState('');
+
   const handleSendMessage = async (message: string) => {
-    console.log('发送消息：', message);
     if (!message.trim()) return;
+    setMsgLoading(true);
 
     // 添加用户消息
     const newUserMessage = {
       id: Date.now().toString(),
-      type: 'user' as const,
+      role: 'user' as const,
       content: message,
       timestamp: new Date(),
     };
@@ -170,6 +167,8 @@ export default function AiContent({ timePeriod, userName }: AiContentProps) {
     setChatHistory((prev) => [...prev, newUserMessage]);
     setHasSentFirstMessage(true);
 
+    // 先检索知识库，命中结果作为上下文注入到后续 GPT 对话中
+    let ragContext = '';
     try {
       const result = await searchKnowledge({
         query: message,
@@ -180,23 +179,79 @@ export default function AiContent({ timePeriod, userName }: AiContentProps) {
           public: true,
         },
       });
-
-      const aiResponse = {
-        id: (Date.now() + 1).toString(),
-        type: 'assistant' as const,
-        content: `知识库检索结果：\n\n${formatCitations(result.citations)}`,
-        timestamp: new Date(),
-      };
-      setChatHistory((prev) => [...prev, aiResponse]);
+      ragContext = formatCitations(result.citations);
     } catch (error) {
-      console.warn('RAG search failed, fallback to mock response:', error);
-      const aiResponse = {
+      console.warn('RAG search failed, fallback to direct GPT chat:', error);
+    }
+
+    // 添加一个占位 AI 消息；若命中 RAG，先展示知识库来源区块
+    const aiMessageIndex = chatHistory.length + 1;
+    const ragPrefix = ragContext
+      ? `📚 知识库来源：\n\n${ragContext}\n\n————\n\n`
+      : '';
+    currentResponseRef.current = ragPrefix;
+    setCurrentMessage(ragPrefix);
+    setChatHistory((prev) => [
+      ...prev,
+      {
         id: (Date.now() + 1).toString(),
-        type: 'assistant' as const,
-        content: `这是对"${message}"的模拟回复。启动 Python RAG 服务后，这里会返回知识库来源片段。`,
+        role: 'assistant',
+        content: ragPrefix,
         timestamp: new Date(),
-      };
-      setChatHistory((prev) => [...prev, aiResponse]);
+      },
+    ]);
+
+    // 构造发送给 GPT 的消息：在用户消息前注入 RAG 资料，让模型真正基于资料回答
+    const messagesForGPT = [...chatHistory, newUserMessage];
+    if (ragContext) {
+      messagesForGPT.splice(messagesForGPT.length - 1, 0, {
+        id: 'rag-context',
+        role: 'user' as const,
+        content: `以下是知识库中检索到的相关资料，请在回答用户问题时优先参考，并用 [1] 这种编号标注来源：\n\n${ragContext}`,
+        timestamp: new Date(),
+      });
+    }
+
+    try {
+      await chatWithGPT(
+        messagesForGPT,
+        // onChunk: 处理每个数据块
+        (chunk: string) => {
+          currentResponseRef.current += chunk;
+          setCurrentMessage(currentResponseRef.current);
+
+          // 更新消息列表中的 AI 回复
+          setChatHistory((prev) => {
+            const updated = [...prev];
+            updated[aiMessageIndex].content = currentResponseRef.current;
+            return updated;
+          });
+        },
+        // onComplete: 完成时的处理
+        (fullResponse: string) => {
+          setMsgLoading(false);
+          setCurrentMessage(''); // 清空当前消息状态
+          setChatHistory((prev) => {
+            const updated = [...prev];
+            updated[aiMessageIndex].content = ragPrefix + fullResponse;
+            return updated;
+          });
+        },
+        // onError: 错误处理
+        (error: any) => {
+          setMsgLoading(false);
+          setCurrentMessage(''); // 清空当前消息状态
+          console.error('Stream error:', error);
+          setChatHistory((prev) => {
+            const updated = [...prev];
+            updated[aiMessageIndex].content = '发生错误，请重试';
+            return updated;
+          });
+        },
+      );
+    } catch (error) {
+      setMsgLoading(false);
+      console.error('Chat error:', error);
     }
   };
 
@@ -212,7 +267,13 @@ export default function AiContent({ timePeriod, userName }: AiContentProps) {
         <Prompt timePeriod={timePeriod} userName={userName} />
       )}
       {/* 聊天对话框 */}
-      {hasSentFirstMessage && <Dialogue chatHistory={chatHistory} />}
+      {hasSentFirstMessage && (
+        <Dialogue
+          msgLoading={msgLoading}
+          chatHistory={chatHistory}
+          currentMessage={currentMessage}
+        />
+      )}
       {/* 输入区域 */}
       <InputArea
         quickActions={quickActions}
@@ -220,6 +281,7 @@ export default function AiContent({ timePeriod, userName }: AiContentProps) {
         aiType={aiType}
         setAiType={setAiType}
         handleSendMessage={handleSendMessage}
+        msgLoading={msgLoading}
       />
       {/* 快捷功能按钮 */}
       {!hasSentFirstMessage && (

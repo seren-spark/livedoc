@@ -20,6 +20,7 @@ interface InputAreaProps {
   aiType: React.ReactNode;
   setAiType: (aiType: any) => void;
   handleSendMessage: (message: string) => void;
+  msgLoading: boolean;
 }
 
 const { TextArea } = Input;
@@ -37,10 +38,9 @@ function InputArea({
   aiType,
   setAiType,
   handleSendMessage,
+  msgLoading,
 }: InputAreaProps) {
   const [inputValue, setInputValue] = useState('');
-  const [transcript, setTranscript] = useState('');
-  //   const [aiType, setAiType] = useState<React.ReactNode>(null);
   const [isListening, setIsListening] = useState(false);
   const [status, setStatus] = useState('准备就绪');
   const recognitionRef = useRef<any>(null);
@@ -71,7 +71,7 @@ function InputArea({
 
     recognition.onresult = (event: any) => {
       const transcript = event.results[0][0].transcript;
-      setTranscript(transcript);
+      setInputValue(inputValue + transcript);
       setStatus(`识别结果: ${transcript}`);
     };
 
@@ -120,7 +120,6 @@ function InputArea({
 
   const handleGainMessage = () => {
     if (inputValue.trim()) {
-      console.log('发送消息:', inputValue);
       handleSendMessage(inputValue);
       setInputValue('');
     }
@@ -150,7 +149,7 @@ function InputArea({
             e.preventDefault();
             handleGainMessage();
           }}
-          value={inputValue || transcript}
+          value={inputValue}
         />
 
         <div className="input-actions">
@@ -200,7 +199,7 @@ function InputArea({
               className="send-button"
               style={{ borderRadius: '6px' }}
               onClick={handleGainMessage}
-              disabled={!inputValue.trim()}
+              disabled={!inputValue.trim() || msgLoading}
             />
           </Space>
         </div>

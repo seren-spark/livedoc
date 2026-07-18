@@ -1,50 +1,118 @@
-import type React from 'react';
-import { useState, useRef, useEffect } from 'react';
+import React from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { Layout, Button } from 'antd';
-import ReactMarkdown from 'react-markdown';
 import { DownOutlined } from '@ant-design/icons';
+import { FixedMarkdownRenderer } from './FixedMDRenderer';
 import './index.scss';
 
 const { Content } = Layout;
 
 interface Message {
   id: string;
-  type: 'user' | 'assistant';
+  role: 'user' | 'assistant';
   content: string;
   timestamp: Date;
 }
 
 interface DialogueProps {
   chatHistory: Message[];
+  msgLoading: boolean;
+  currentMessage: string;
 }
+
+/**
+ * 单条消息组件，避免整个列表反复渲染
+ */
+const ChatMessage: React.FC<{
+  message: Message;
+  isLast: boolean;
+  msgLoading: boolean;
+}> = React.memo(({ message, isLast, msgLoading }) => {
+  return (
+    <div
+      className="message-box"
+      style={{
+        justifyContent: message.role === 'user' ? 'flex-end' : 'flex-start',
+      }}
+    >
+      <div className="message-bubble">
+        <div
+          className="message-text"
+          style={{
+            overflow: 'hidden',
+            background: message.role === 'user' ? '#448ef7' : '#fff',
+            color: message.role === 'user' ? '#fff' : '#34495e',
+            borderRadius: message.role === 'user' ? '18px 18px 4px 18px' : '',
+            padding: message.role === 'user' ? '12px 16px' : '10px 0',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'flex-end' }}>
+            <FixedMarkdownRenderer rawText={message.content} />
+            {msgLoading && isLast && message.role === 'assistant' && (
+              <span className="cursor">|</span>
+            )}
+          </div>
+        </div>
+
+        <div
+          className="message-timestamp"
+          style={{
+            textAlign: message.role === 'user' ? 'right' : 'left',
+          }}
+        >
+          {message.timestamp.toLocaleTimeString('zh-CN', {
+            hour: '2-digit',
+            minute: '2-digit',
+          })}
+        </div>
+      </div>
+    </div>
+  );
+});
+
+ChatMessage.displayName = 'ChatMessage';
 
 const ChatConversationPage: React.FC<DialogueProps> = ({
   chatHistory: messages,
+  msgLoading,
+  currentMessage,
 }) => {
-  const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
-  const [showScrollButton, setShowScrollButton] = useState(false);
+  const [visible, setVisible] = useState(false);
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  };
+  const scrollToBottom = useCallback((smooth = false) => {
+    const container = messagesContainerRef.current;
+    if (container) {
+      if (smooth) {
+        container.scrollTo({
+          top: container.scrollHeight,
+          behavior: 'smooth',
+        });
+      } else {
+        container.scrollTop = container.scrollHeight;
+      }
+    }
+  }, []);
 
+  // 初始进入页面时滚动到底部
   useEffect(() => {
-    scrollToBottom();
-  }, [messages]);
+    const timer = setTimeout(() => {
+      scrollToBottom(false);
+    }, 50);
+    return () => clearTimeout(timer);
+  }, [scrollToBottom]);
 
-  // 监听滚动事件，判断是否显示回到底部按钮
+  // 滚动事件监听，控制「回到底部按钮」
   useEffect(() => {
     const container = messagesContainerRef.current;
     if (!container) return;
 
     const handleScroll = () => {
       const { scrollTop, scrollHeight, clientHeight } = container;
-      // 当距离底部超过100px时显示按钮
       if (scrollHeight - scrollTop - clientHeight > 200) {
-        setShowScrollButton(true);
+        setVisible(true);
       } else {
-        setShowScrollButton(false);
+        setVisible(false);
       }
     };
 
@@ -52,77 +120,42 @@ const ChatConversationPage: React.FC<DialogueProps> = ({
     return () => container.removeEventListener('scroll', handleScroll);
   }, []);
 
-  const MessageBubble: React.FC<{ message: Message }> = ({ message }) => {
-    const isUser = message.type === 'user';
-
-    return (
-      <div
-        className="message-box"
-        style={{
-          justifyContent: isUser ? 'flex-end' : 'flex-start',
-        }}
-      >
-        <div className="message-bubble">
-          <div
-            className="message-text"
-            style={{
-              background: isUser ? '#448ef7' : '#fff',
-              color: isUser ? '#fff' : '#333',
-              borderRadius: isUser ? '18px 18px 4px 18px' : '',
-              padding: isUser ? '12px 16px' : '10px 0',
-            }}
-          >
-            {message.content.split('\n').map((line, index) => (
-              <div key={index}>
-                <ReactMarkdown>{line}</ReactMarkdown>
-                {index < message.content.split('\n').length - 1 && <br />}
-              </div>
-            ))}
-          </div>
-
-          <div
-            className="message-timestamp"
-            style={{
-              textAlign: isUser ? 'right' : 'left',
-            }}
-          >
-            {message.timestamp.toLocaleTimeString('zh-CN', {
-              hour: '2-digit',
-              minute: '2-digit',
-            })}
-          </div>
-        </div>
-      </div>
-    );
-  };
+  // 只有新增消息时才自动滚动到底部
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages.length, scrollToBottom]);
 
   return (
     <Layout className="dialogue-box">
       <Content className="dialogue-content">
-        {/* 消息列表区域 */}
         <div className="dialogue-messages" ref={messagesContainerRef}>
           <div className="messages-container">
-            {messages.map((message) => (
-              <MessageBubble key={message.id} message={message} />
+            {messages.map((message, index) => (
+              <ChatMessage
+                key={message.id}
+                message={
+                  index === messages.length - 1 && message.role === 'assistant'
+                    ? { ...message, content: message.content + currentMessage }
+                    : message
+                }
+                isLast={index === messages.length - 1}
+                msgLoading={msgLoading}
+              />
             ))}
-            <div ref={messagesEndRef} />
           </div>
 
-          {/* 回到底部按钮 */}
-          {showScrollButton && (
-            <Button
-              className="scroll-to-bottom-btn"
-              type="primary"
-              shape="circle"
-              icon={<DownOutlined />}
-              onClick={scrollToBottom}
-              size="large"
-            />
-          )}
+          <Button
+            className="scroll-to-bottom-btn"
+            style={{ visibility: visible ? 'visible' : 'hidden' }}
+            type="primary"
+            shape="circle"
+            icon={<DownOutlined />}
+            onClick={() => scrollToBottom(true)}
+            size="large"
+          />
         </div>
       </Content>
     </Layout>
   );
 };
-
 export default ChatConversationPage;
