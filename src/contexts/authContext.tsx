@@ -1,6 +1,8 @@
 // src/context/AuthContext.tsx
 import type { RootState } from '@/store';
+import { clearToken } from '@/store/modules/testSlice';
 import { setUserLogout, type UserState } from '@/store/modules/userSlice';
+import { logoutDemoUser } from '@/api/rag';
 import type React from 'react';
 import { createContext, useContext, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
@@ -54,7 +56,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   const logout = () => {
     // setIsLoggedIn(false);
     // 更新 Redux 状态
+    void logoutDemoUser().catch(() => undefined);
     dispatch(setUserLogout());
+    dispatch(clearToken());
   };
 
   // 需要登录验证的操作包装函数

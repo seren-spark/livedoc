@@ -20,6 +20,7 @@ import {
   SettingOutlined,
   BarChartOutlined,
   ThunderboltOutlined,
+  FileSearchOutlined,
 } from '@ant-design/icons';
 import { HybridFIMService } from '@/utils/hybridFIMService';
 import AISuggestionBus from '@/utils/AISuggestionBus';
@@ -27,9 +28,13 @@ import { SmartPositionDetection } from '@/utils/smartPositionDetection';
 
 interface AIEditorToolbarProps {
   editor: any;
+  onOpenRag?: () => void;
 }
 
-export default function AIEditorToolbar({ editor }: AIEditorToolbarProps) {
+export default function AIEditorToolbar({
+  editor,
+  onOpenRag,
+}: AIEditorToolbarProps) {
   const [loading, setLoading] = useState(false);
   //   const [fimService] = useState(() => new HybridFIMService()); // 不需要传入API Key
   const [settings, setSettings] = useState({
@@ -151,6 +156,17 @@ export default function AIEditorToolbar({ editor }: AIEditorToolbarProps) {
   }, [editor, fimService]);
 
   const menuItems = [
+    ...(onOpenRag
+      ? [
+          {
+            key: 'knowledge-chat',
+            label: '知识库问答',
+            icon: <FileSearchOutlined />,
+            onClick: onOpenRag,
+          },
+          { type: 'divider' as const },
+        ]
+      : []),
     {
       key: 'smart-fim',
       label: '智能FIM补全',
