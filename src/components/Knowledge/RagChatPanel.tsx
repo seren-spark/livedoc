@@ -21,6 +21,8 @@ import {
   Plus,
   Send,
   Square,
+  ThumbsDown,
+  ThumbsUp,
   Users,
   X,
 } from 'lucide-react';
@@ -28,7 +30,14 @@ import { useSelector } from 'react-redux';
 import type { RootState } from '@/store';
 import type { UserState } from '@/store/modules/userSlice';
 import marked from '@/utils/marked';
-import { streamAiWrite, type Citation, type RetrievalDomain } from '@/api/rag';
+import {
+  streamAiWrite,
+  submitAiFeedback,
+  type AgentToolCall,
+  type Citation,
+  type RetrievalDomain,
+  type RetrievalTrace,
+} from '@/api/rag';
 import './RagChatPanel.scss';
 
 const { Text } = Typography;
@@ -45,6 +54,9 @@ type ConversationTurn = {
   status: TurnStatus;
   sourcesExpanded: boolean;
   hasEvidence: boolean;
+  toolCall?: AgentToolCall;
+  trace?: RetrievalTrace;
+  feedback?: 'inserted' | 'helpful' | 'unhelpful';
   error?: string;
 };
 
@@ -73,6 +85,19 @@ const visibilityColors: Record<string, string> = {
   public: 'green',
   private: 'blue',
   team: 'gold',
+};
+
+const toolLabels: Record<AgentToolCall['name'], string> = {
+  knowledge_search: '知识库检索',
+  summarize_document: '当前文档摘要',
+  continue_paragraph: '上下文续写',
+  format_selection: '选区优化',
+};
+
+const toolSourceLabels: Record<AgentToolCall['source'], string> = {
+  llm_function_call: 'Function Call',
+  rule_fallback: '规则降级',
+  request_intent: '显式意图',
 };
 
 function createId(prefix: string) {
@@ -290,7 +315,6 @@ export default function RagChatPanel({
     try {
       await streamAiWrite(
         {
-          intent: 'knowledge_qa',
           query: question,
           retrieval_domain: domain,
           conversation_id: conversationId,
@@ -310,8 +334,11 @@ export default function RagChatPanel({
             : {}),
         },
         {
+          onToolCall: (toolCall) => updateTurn(turnId, { toolCall }),
           onMeta: (meta) =>
             updateTurn(turnId, {
+              toolCall: meta.tool_call,
+              trace: meta.retrieval_trace,
               citations: meta.citations,
               retrievedDocumentCount: meta.retrieved_document_count,
               status: 'streaming',
@@ -421,7 +448,25 @@ export default function RagChatPanel({
     const markdown = `${turn.answer}\n\n## 参考资料\n${references}`;
     const html = sanitizeHtml(marked.parse(markdown) as string);
     editor.chain().focus().insertContent(html).run();
+    updateTurn(turn.id, { feedback: 'inserted' });
+    if (turn.trace?.trace_id) {
+      void submitAiFeedback(turn.trace.trace_id, 'inserted').catch(() => {
+        message.warning('内容已插入，但采纳指标上报失败');
+      });
+    }
     message.success('回答已插入当前光标位置');
+  };
+
+  const recordFeedback = (
+    turn: ConversationTurn,
+    feedback: 'helpful' | 'unhelpful',
+  ) => {
+    if (!turn.trace?.trace_id || turn.feedback === feedback) return;
+    updateTurn(turn.id, { feedback });
+    void submitAiFeedback(turn.trace.trace_id, feedback).catch(() => {
+      updateTurn(turn.id, { feedback: undefined });
+      message.warning('反馈上报失败，请稍后重试');
+    });
   };
 
   const renderedTurns = useMemo(
@@ -483,6 +528,26 @@ export default function RagChatPanel({
           {renderedTurns.map((turn) => (
             <section className="rag-turn" key={turn.id}>
               <div className="rag-turn__question">{turn.question}</div>
+
+              {turn.toolCall && (
+                <Tooltip title={turn.toolCall.reason} placement="left">
+                  <div className="rag-turn__trace">
+                    <span>{toolLabels[turn.toolCall.name]}</span>
+                    <span>{toolSourceLabels[turn.toolCall.source]}</span>
+                    {turn.trace && (
+                      <>
+                        <span>
+                          召回 {turn.trace.dense_candidates} +{' '}
+                          {turn.trace.keyword_candidates}
+                        </span>
+                        <span>RRF {turn.trace.fused_candidates}</span>
+                        <span>重排 {turn.trace.reranked_candidates}</span>
+                        <strong>{turn.trace.total_ms.toFixed(0)} ms</strong>
+                      </>
+                    )}
+                  </div>
+                </Tooltip>
+              )}
 
               <button
                 type="button"
@@ -561,9 +626,31 @@ export default function RagChatPanel({
                   <Button
                     icon={<FilePlus2 size={15} />}
                     onClick={() => insertAnswer(turn)}
+                    disabled={turn.feedback === 'inserted'}
                   >
-                    插入当前文档光标位置
+                    {turn.feedback === 'inserted'
+                      ? '已插入当前文档'
+                      : '确认后插入当前文档'}
                   </Button>
+                  <span className="rag-turn__feedback">
+                    <Tooltip title="有帮助">
+                      <Button
+                        type={turn.feedback === 'helpful' ? 'primary' : 'text'}
+                        size="small"
+                        icon={<ThumbsUp size={14} />}
+                        onClick={() => recordFeedback(turn, 'helpful')}
+                      />
+                    </Tooltip>
+                    <Tooltip title="无帮助">
+                      <Button
+                        type={turn.feedback === 'unhelpful' ? 'primary' : 'text'}
+                        danger={turn.feedback === 'unhelpful'}
+                        size="small"
+                        icon={<ThumbsDown size={14} />}
+                        onClick={() => recordFeedback(turn, 'unhelpful')}
+                      />
+                    </Tooltip>
+                  </span>
                 </div>
               )}
             </section>

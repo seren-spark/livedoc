@@ -1,8 +1,9 @@
 import UserPopover from '@/components/UserPopover';
-import { EyeOutlined, LikeOutlined } from '@ant-design/icons';
-import { List, Row, Col, Space, Tag, Typography } from 'antd';
+import { DatabaseOutlined, EyeOutlined, LikeOutlined } from '@ant-design/icons';
+import { Button, List, Row, Col, Space, Tag, Typography } from 'antd';
 import '@/layouts/frontLayout/MyContent/index.scss';
 import MiddleContent from '@/layouts/frontLayout/MiddleContent';
+import { useNavigate } from 'react-router-dom';
 const { Text, Title } = Typography;
 const mockArticles = [
   {
@@ -85,87 +86,117 @@ const mockArticles = [
   },
 ];
 export default function Test() {
+  const navigate = useNavigate();
   return (
     // <MiddleContent>
-    <List
-      dataSource={mockArticles}
-      renderItem={(article) => (
-        <List.Item className="article-list-item">
-          <div style={{ flex: '1 1 auto' }}>
-            <Title
-              className="article-list-item-title"
+    <>
+      <div
+        style={{
+          marginBottom: 16,
+          padding: '14px 16px',
+          border: '1px solid #dfe5ea',
+          borderRadius: 8,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: 12,
+          background: '#fff',
+        }}
+      >
+        <Space direction="vertical" size={2}>
+          <Text strong>知识库管理</Text>
+          <Text type="secondary">
+            按个人、团队、公开空间管理 RAG 可检索资料
+          </Text>
+        </Space>
+        <Button
+          type="primary"
+          icon={<DatabaseOutlined />}
+          onClick={() => navigate('/knowledge')}
+        >
+          进入知识库
+        </Button>
+      </div>
+      <List
+        dataSource={mockArticles}
+        renderItem={(article) => (
+          <List.Item className="article-list-item">
+            <div style={{ flex: '1 1 auto' }}>
+              <Title
+                className="article-list-item-title"
+                style={{
+                  margin: '0 0 8px 0',
+                  color: '#252933',
+                  cursor: 'pointer',
+                }}
+              >
+                {article.title}
+              </Title>
+
+              <Text
+                type="secondary"
+                style={{
+                  fontSize: '14px',
+                  lineHeight: '22px',
+                  display: 'block',
+                  marginBottom: '12px',
+                }}
+              >
+                {article.content}
+              </Text>
+
+              <Row justify="space-between" align="middle">
+                <Col>
+                  <Space size="middle">
+                    <Space size="small">
+                      {/* <Avatar size="small" src={article.avatar} /> */}
+                      <UserPopover></UserPopover>
+                    </Space>
+                    <Text type="secondary" style={{ fontSize: '13px' }}>
+                      {article.time}
+                    </Text>
+                    <Space size="small">
+                      <EyeOutlined style={{ fontSize: '12px' }} />
+                      <Text type="secondary" style={{ fontSize: '13px' }}>
+                        {article.views}
+                      </Text>
+                    </Space>
+                    <Space size="small">
+                      <LikeOutlined style={{ fontSize: '12px' }} />
+                      <Text type="secondary" style={{ fontSize: '13px' }}>
+                        {article.likes}
+                      </Text>
+                    </Space>
+                  </Space>
+                </Col>
+                <Col>
+                  <Space size="small">
+                    {article.tags?.map((tag) => (
+                      <Tag key={tag} color="blue" style={{ fontSize: '12px' }}>
+                        {tag}
+                      </Tag>
+                    ))}
+                  </Space>
+                </Col>
+              </Row>
+            </div>
+            <div
               style={{
-                margin: '0 0 8px 0',
-                color: '#252933',
-                cursor: 'pointer',
+                width: '140px',
+                height: '100px',
+                flexShrink: '0',
               }}
             >
-              {article.title}
-            </Title>
-
-            <Text
-              type="secondary"
-              style={{
-                fontSize: '14px',
-                lineHeight: '22px',
-                display: 'block',
-                marginBottom: '12px',
-              }}
-            >
-              {article.content}
-            </Text>
-
-            <Row justify="space-between" align="middle">
-              <Col>
-                <Space size="middle">
-                  <Space size="small">
-                    {/* <Avatar size="small" src={article.avatar} /> */}
-                    <UserPopover></UserPopover>
-                  </Space>
-                  <Text type="secondary" style={{ fontSize: '13px' }}>
-                    {article.time}
-                  </Text>
-                  <Space size="small">
-                    <EyeOutlined style={{ fontSize: '12px' }} />
-                    <Text type="secondary" style={{ fontSize: '13px' }}>
-                      {article.views}
-                    </Text>
-                  </Space>
-                  <Space size="small">
-                    <LikeOutlined style={{ fontSize: '12px' }} />
-                    <Text type="secondary" style={{ fontSize: '13px' }}>
-                      {article.likes}
-                    </Text>
-                  </Space>
-                </Space>
-              </Col>
-              <Col>
-                <Space size="small">
-                  {article.tags?.map((tag) => (
-                    <Tag key={tag} color="blue" style={{ fontSize: '12px' }}>
-                      {tag}
-                    </Tag>
-                  ))}
-                </Space>
-              </Col>
-            </Row>
-          </div>
-          <div
-            style={{
-              width: '140px',
-              height: '100px',
-              flexShrink: '0',
-            }}
-          >
-            <img
-              style={{ height: '100%', width: '100%' }}
-              src="https://picsum.photos/200/300"
-              alt=""
-            />
-          </div>
-        </List.Item>
-      )}
-    />
+              <img
+                style={{ height: '100%', width: '100%' }}
+                src="https://picsum.photos/200/300"
+                alt=""
+              />
+            </div>
+          </List.Item>
+        )}
+      />
+    </>
     // </MiddleContent>
   );
 }

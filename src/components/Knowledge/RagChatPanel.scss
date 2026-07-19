@@ -124,6 +124,39 @@
   overflow-wrap: anywhere;
 }
 
+.rag-turn__trace {
+  margin: -6px 0 10px;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 5px;
+  color: #6d7882;
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+
+  span,
+  strong {
+    min-height: 21px;
+    padding: 3px 7px;
+    border: 1px solid #dfe5e6;
+    border-radius: 4px;
+    display: inline-flex;
+    align-items: center;
+    background: #f7f9f9;
+  }
+
+  span:first-child {
+    border-color: #b9d2cd;
+    background: #eaf2f0;
+    color: #28594f;
+    font-weight: 700;
+  }
+
+  strong {
+    color: var(--rag-accent);
+  }
+}
+
 .rag-turn__source-toggle {
   width: 100%;
   height: 38px;
@@ -337,6 +370,16 @@
   margin-top: 14px;
   padding-top: 12px;
   border-top: 1px solid var(--rag-line);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.rag-turn__feedback {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
 }
 
 .rag-composer {

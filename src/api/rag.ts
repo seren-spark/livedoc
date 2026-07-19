@@ -115,7 +115,7 @@ export type EditorContext = {
 };
 
 export type AiWritePayload = {
-  intent:
+  intent?:
     | 'knowledge_qa'
     | 'knowledge_search'
     | 'continue_paragraph'
@@ -143,14 +143,69 @@ export type DemoUser = {
 
 export type AiWriteMeta = {
   intent: string;
+  tool_call: AgentToolCall;
+  retrieval_trace: RetrievalTrace;
   citations: Citation[];
   retrieved_document_count: number;
 };
 
+export type AgentToolCall = {
+  name:
+    | 'knowledge_search'
+    | 'summarize_document'
+    | 'continue_paragraph'
+    | 'format_selection';
+  arguments: Record<string, unknown>;
+  reason: string;
+  source: 'llm_function_call' | 'rule_fallback' | 'request_intent';
+  selection_ms: number;
+};
+
+export type RetrievalTrace = {
+  trace_id: string;
+  mode: 'dense' | 'keyword' | 'hybrid';
+  rewritten_query: string;
+  dense_candidates: number;
+  keyword_candidates: number;
+  fused_candidates: number;
+  reranked_candidates: number;
+  deduped_candidates: number;
+  returned_citations: number;
+  retrieval_ms: number;
+  rerank_ms: number;
+  compression_ms: number;
+  total_ms: number;
+};
+
+export type RagMetrics = {
+  search_count: number;
+  completion_count: number;
+  evidence_completion_count: number;
+  no_evidence_rate: number;
+  p50_latency_ms: number;
+  p95_latency_ms: number;
+  inserted_count: number;
+  adoption_rate: number;
+  helpful_count: number;
+  unhelpful_count: number;
+};
+
 export type AiWriteStreamHandlers = {
+  onToolCall?: (toolCall: AgentToolCall) => void;
+  onToolResult?: (result: {
+    name: AgentToolCall['name'];
+    trace_id: string;
+    has_evidence: boolean;
+    citation_count: number;
+    duration_ms: number;
+  }) => void;
   onMeta: (meta: AiWriteMeta) => void;
   onDelta: (delta: string) => void;
-  onDone: (result: { status: string; has_evidence: boolean }) => void;
+  onDone: (result: {
+    status: string;
+    has_evidence: boolean;
+    trace_id: string;
+  }) => void;
   onError: (message: string) => void;
 };
 
@@ -262,10 +317,26 @@ export async function streamAiWrite(
 
     const raw = dataLines.join('\n');
     const data = JSON.parse(raw);
+    if (eventName === 'tool_call') {
+      handlers.onToolCall?.(data as AgentToolCall);
+    }
+    if (eventName === 'tool_result') {
+      handlers.onToolResult?.(
+        data as {
+          name: AgentToolCall['name'];
+          trace_id: string;
+          has_evidence: boolean;
+          citation_count: number;
+          duration_ms: number;
+        },
+      );
+    }
     if (eventName === 'meta') handlers.onMeta(data as AiWriteMeta);
     if (eventName === 'delta') handlers.onDelta(String(data));
     if (eventName === 'done') {
-      handlers.onDone(data as { status: string; has_evidence: boolean });
+      handlers.onDone(
+        data as { status: string; has_evidence: boolean; trace_id: string },
+      );
     }
     if (eventName === 'error') {
       handlers.onError(data?.message || '生成失败，请稍后重试');
@@ -298,4 +369,22 @@ export async function logoutDemoUser() {
 export async function seedRagDemoData() {
   const { data } = await ragClient.post('/dev/seed');
   return data;
+}
+
+export async function submitAiFeedback(
+  traceId: string,
+  action: 'inserted' | 'helpful' | 'unhelpful' | 'dismissed',
+  comment = '',
+) {
+  const { data } = await ragClient.post('/ai/feedback', {
+    trace_id: traceId,
+    action,
+    comment,
+  });
+  return data as { status: 'recorded'; trace_id: string; action: string };
+}
+
+export async function getRagMetrics() {
+  const { data } = await ragClient.get('/metrics/rag');
+  return data as RagMetrics;
 }

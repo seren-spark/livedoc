@@ -372,7 +372,7 @@ const TiptapEditor = () => {
 
             {/* 🔥 测试文档加载按钮 */}
             <Dropdown
-              dropdownRender={() => (
+              popupRender={() => (
                 <div
                   style={{
                     background: '#fff',
