@@ -1,204 +1,165 @@
-# 智汇云舟
+# LiveDoc
 
-该项目旨在创建一个基于React18 的学习平台,有直播,文章等,集成AI功能
+LiveDoc 是面向个人知识管理、团队资料沉淀与文档创作的智能写作工作台。前端以 TipTap/ProseMirror 为编辑内核，连接独立的 FastAPI RAG 服务，形成“资料管理 → 权限检索 → 带引用生成 → 人工确认写回 → 反馈采集”的完整产品闭环。
 
-## 📝 提交规范
+> 本仓库是 LiveDoc 前端。RAG、文档索引和 AI 写作服务位于 [`livedoc_server`](https://github.com/seren-spark/livedoc_server)。
 
-### 提交信息格式
+## 核心能力
 
-使用 [Conventional Commits](https://www.conventionalcommits.org/) 规范：
+### 知识库工作区
 
-```
-<type>(<scope>): <description>
+- 按 `private / team / public` 管理个人、团队和公开资料。
+- 支持文档创建、编辑、删除、重新索引和索引状态查看。
+- 展示 `pending / indexing / ready / failed` 生命周期、分块数量与失败原因。
+- 支持按空间、目录、文档范围筛选检索来源。
 
-[optional body]
+入口：`/knowledge`
 
-[optional footer]
-```
+### TipTap 写作工作台
 
-### 提交类型说明
+- 基于 TipTap 3 与 ProseMirror 构建富文本编辑器。
+- 在编辑器内打开 RAG 对话面板，传递标题、标签、光标前后文、选区和当前文档。
+- 支持公开资料、个人资料、团队资料和当前文档四种检索域。
+- 引用可展开查看原始片段；当前文档引用可定位回对应段落。
+- AI 输出默认进入预览态，用户确认后才写入正文。
 
-| 类型       | 说明                         | 示例                        |
-| ---------- | ---------------------------- | --------------------------- |
-| `feat`     | 新功能                       | `feat: 添加用户登录功能`    |
-| `fix`      | Bug修复                      | `fix: 修复登录表单验证问题` |
-| `docs`     | 文档更新                     | `docs: 更新API文档`         |
-| `style`    | 代码格式(不影响功能)         | `style: 格式化代码`         |
-| `refactor` | 重构(既不是新功能也不是修复) | `refactor: 重构用户服务`    |
-| `perf`     | 性能优化                     | `perf: 优化列表渲染性能`    |
-| `test`     | 添加或修改测试               | `test: 添加登录功能测试`    |
-| `chore`    | 构建过程或辅助工具变动       | `chore: 更新依赖包`         |
+入口：`/editor/draft`
 
-### 作用域说明
+### 受约束的 AI 工具编排
 
-常用作用域包括：`auth`, `ui`, `api`, `utils`, `config` 等
+统一输入框通过后端 Function Calling 在以下工具间路由：
 
-## 项目开发规范
+- 知识库检索与问答
+- 当前文档摘要
+- 上下文续写
+- 选区格式与表达优化
 
-### 命名规范
+前端按 `tool_call → tool_result → meta → delta → done` 顺序消费 SSE 事件，先展示工具和资料来源，再增量渲染答案。工具输出不会绕过用户直接修改文档。
 
-- prop 命名使用 `kebab-case` 形式，如 `user-name`。
-- 组件 命名使用 `PascalCase` 形式，如 `UserProfile`。
-- 文件夹名称 采用 `kebab-case` 形式，如 `user-profile`。
-- 变量命名 使用 `camelCase` 形式，如 `userName`。
-- 常量命名 使用全大写和下划线连接，如 `API_BASE_URL`。
-- 函数命名 使用 `camelCase` 形式，如 `fetchUserData()`。
-- 类名命名 使用 `PascalCase`，如 `UserCard`。
-- 接口命名 使用 `I` 前缀 + `PascalCase`，如 `IUser`。
-- CSS 类名命名 遵循 BEM (Block Element Modifier) 方法论：如 `.user-card`
+### 引用、反馈与可观测性
 
-### 📏 开发规范
+- 展示文档、分块、版本、可见范围和 dense/keyword/rerank 分数。
+- 支持插入正文、点赞和点踩反馈。
+- 通过 `trace_id` 关联检索过程、生成结果与采纳行为。
+- 知识库页展示检索量、无证据率、P50/P95 延迟和采纳率等运行指标。
 
-为了确保代码质量和团队协作效率，本项目制定了以下开发规范，请所有开发者严格遵守。
+### 类 Copilot 内联补全
 
-#### 📋 规范目录
+- 使用 ProseMirror Plugin 与 DecorationSet 渲染不进入文档状态的预测文本。
+- 代码块补全由 `CodeBlockWithSuggestion` 扩展承载。
+- 用户确认后才把建议写入正文，避免临时预测污染协同编辑状态。
 
-- [分支管理](#分支管理)
-- [提交规范](#提交规范)
-- [命名规范](#命名规范)
-- [代码组织](#代码组织)
-- [注释规范](#注释规范)
+## 产品链路
 
----
-
-### 🌳 分支管理
-
-#### 分支策略
-
-本项目采用 **Git Flow** 工作流：
-
-```
-main (主分支 - 生产环境)
-├── develop (开发分支 - 测试环境)
-│   ├── feature/user-login (功能分支)
-│   ├── feature/dashboard (功能分支)
-│   └── bugfix/header-style (修复分支)
-└── hotfix/security-fix (热修复分支)
+```mermaid
+flowchart LR
+  A["知识库管理 /knowledge"] --> B["FastAPI 文档生命周期 API"]
+  B --> C["MySQL + Qdrant 索引"]
+  D["TipTap 写作页 /editor/draft"] --> E["RAG 对话与编辑上下文"]
+  E --> F["Function Calling 工具路由"]
+  F --> G["混合检索与带引用生成"]
+  G --> H["SSE 预览"]
+  H --> I["用户确认写入正文"]
+  I --> J["采纳 / 点赞 / 点踩反馈"]
 ```
 
-#### 分支命名规范
+## 技术栈
 
-| 分支类型 | 命名格式          | 示例                    | 用途             |
-| -------- | ----------------- | ----------------------- | ---------------- |
-| 功能开发 | `feature/功能名`  | `feature/user-auth`     | 新功能开发       |
-| Bug修复  | `bugfix/问题描述` | `bugfix/login-error`    | Bug 修复         |
-| 热修复   | `hotfix/紧急修复` | `hotfix/security-patch` | 生产环境紧急修复 |
-| 发布分支 | `release/版本号`  | `release/v1.2.0`        | 发布前准备       |
+| 领域       | 技术                                                  |
+| ---------- | ----------------------------------------------------- |
+| 基础框架   | React 18、TypeScript、Vite 7                          |
+| 编辑器     | TipTap 3、ProseMirror、Extension/Plugin 扩展体系      |
+| UI 与样式  | Ant Design 5、UnoCSS、Sass、styled-components         |
+| 状态与请求 | Redux Toolkit、Redux Persist、TanStack Query、Axios   |
+| 协同编辑   | Yjs、y-websocket、y-indexeddb                         |
+| 内容渲染   | React Markdown、marked、KaTeX、highlight.js、lowlight |
+| 工程化     | ESLint、Prettier、Husky、TypeScript project build     |
 
-#### 分支操作流程
+## 快速开始
 
-```bash
-# 1. 创建功能分支
-git checkout develop
-git pull origin develop
-git checkout -b feature/user-profile
+### 环境要求
 
-# 2. 开发完成后推送
-git add .
-git commit -m "feat: add user profile page"
-git push origin feature/user-profile
+- Node.js 20.19+（或 22.12+）
+- npm 10+
+- 已启动的 LiveDoc 后端，默认地址 `http://127.0.0.1:8000`
 
-# 3. 创建 Pull Request 到 develop 分支
-# 4. 代码审查通过后合并，删除功能分支
+### 安装与启动
+
+```powershell
+cd E:\LiveDoc\livedoc
+npm install --legacy-peer-deps
+Copy-Item .env.example .env.local
+npm run dev
 ```
 
-#### 分支保护规则
+默认前端地址由 Vite 输出，通常为 `http://127.0.0.1:5173`。
 
-- ✅ `main` 分支：禁止直接推送，需要 2人审查
-- ✅ `develop` 分支：禁止直接推送，需要 1人审查
-- ✅ 所有分支合并前必须通过 CI/CD 检查
+`.env.example` 包含两个服务地址：
 
----
-
-### 📝 提交规范
-
-#### Conventional Commits 规范
-
-我们采用 [Conventional Commits](https://www.conventionalcommits.org/) 规范：
-
-```
-<type>[optional scope]: <description>
-
-[optional body]
-
-[optional footer(s)]
+```env
+VITE_API_BASE_URL=http://127.0.0.1:3001/api
+VITE_RAG_API_BASE_URL=http://127.0.0.1:8000
 ```
 
-#### 提交类型 (type)
+`VITE_RAG_API_BASE_URL` 指向本项目使用的 Python RAG 服务；`VITE_API_BASE_URL` 保留给原有业务 API。
 
-| 类型       | 描述       | 示例                                       |
-| ---------- | ---------- | ------------------------------------------ |
-| `feat`     | 新功能     | `feat: add user login functionality`       |
-| `fix`      | Bug 修复   | `fix: resolve header navigation issue`     |
-| `docs`     | 文档更新   | `docs: update API documentation`           |
-| `style`    | 代码格式化 | `style: format code with prettier`         |
-| `refactor` | 代码重构   | `refactor: optimize user service logic`    |
-| `perf`     | 性能优化   | `perf: improve list rendering performance` |
-| `test`     | 测试相关   | `test: add unit tests for user service`    |
-| `build`    | 构建系统   | `build: update webpack configuration`      |
-| `ci`       | CI/CD 配置 | `ci: add github actions workflow`          |
-| `chore`    | 其他杂务   | `chore: update dependencies`               |
-| `revert`   | 回滚提交   | `revert: rollback user login changes`      |
+## 与后端联调
 
-#### 作用域 (scope)
+RAG 请求从 `sessionStorage.token` 读取开发会话，并发送：
 
-作用域用于指明提交影响的范围：
-
-```bash
-feat(auth): add OAuth login support
-fix(ui): resolve button hover state
-docs(api): update user endpoints documentation
-perf(dashboard): optimize chart rendering
+```http
+Authorization: Bearer <demo-session-token>
 ```
 
-#### 提交描述规范
+后端开发环境提供三组隔离身份，用于验证个人与团队权限：
 
-##### ✅ 好的提交信息
+| 用户  | 空间      | 团队         |
+| ----- | --------- | ------------ |
+| Alice | `space_a` | `team_alpha` |
+| Bob   | `space_a` | `team_alpha` |
+| Carol | `space_a` | `team_beta`  |
 
-```bash
-feat(auth): implement JWT token refresh mechanism
-fix(ui): resolve mobile navigation menu overflow
-docs(readme): add development setup instructions
-perf(api): optimize database query for user list
-refactor(utils): extract common validation functions
+开发密码由后端 demo identity 适配器提供。该身份系统只用于本地权限联调，不代表生产认证方案。
+
+## 关键目录
+
+```text
+src/
+├─ api/rag.ts                         # RAG API、SSE 解析、反馈上报
+├─ components/Knowledge/
+│  ├─ RagChatPanel.tsx                # 写作侧对话、引用、确认与反馈
+│  └─ RagSidebar.tsx                  # 文档范围检索与引用插入
+├─ pages/knowledge/index.tsx          # 知识库管理工作区
+├─ pages/editor/draft.tsx             # 主写作工作台
+└─ pages/editor/extensions/
+   ├─ CodeBlockWithSuggestion.ts      # DecorationSet 内联建议
+   └─ VirtualScroll.ts                # 大文档虚拟化
 ```
 
-##### ❌ 不好的提交信息
+## 质量检查
 
-```bash
-fix bug
-update code
-add stuff
-changes
-wip
-...
+```powershell
+npm run type-check
+npm run lint:check
+npm run format:check
+npm run build
 ```
 
-#### 提交信息模板
+`npm run build` 执行 TypeScript project build 与 Vite 生产构建。Windows 环境若 Husky 提示找不到 `/usr/bin/env sh`，应在 Git Bash/WSL 中运行钩子，或单独执行上述检查命令。
 
-创建提交信息模板文件 `.gitmessage`：
+## 当前边界
 
-```
-# <type>[optional scope]: <description>
-# |<----  Using a Maximum Of 50 Characters  ---->|
+- 开发登录只为权限与产品闭环联调服务，生产环境需要接入真实组织身份源。
+- 普通文档 AI 建议主要通过侧栏预览确认写入；DecorationSet 内联补全当前重点覆盖代码块。
+- README 不声明未经固定数据集和报告验证的准确率、幻觉下降率或真实用户采纳率。
+- RAG 的生产与烟测边界、模型配置和评测方法以后端 README 为准。
 
-# Explain why this change is being made
-# |<----   Try To Limit Each Line to a Maximum Of 72 Characters   ---->|
+## 分支
 
-# Provide links or keys to any relevant tickets, articles or other resources
-# Example: Github issue #23
+知识库与写作工作台当前维护在 `feat/knowledge`。提交信息遵循 Conventional Commits，例如：
 
-# --- COMMIT END ---
-# Type can be
-#    feat     (new feature)
-#    fix      (bug fix)
-#    refactor (refactoring production code)
-#    style    (formatting, missing semi colons, etc; no code change)
-#    docs     (changes to documentation)
-#    test     (adding or refactoring tests; no production code change)
-#    chore    (updating grunt tasks etc; no production code change)
-# --------------------
-# Remember to
-#    Capitalize the subject line
-#    Use
+```text
+feat: add knowledge management workspace
+fix: guard editor schema readiness
+docs: document the LiveDoc product workflow
 ```
