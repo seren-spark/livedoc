@@ -25,14 +25,14 @@ export type RetrievalDomain =
   | 'team'
   | 'current_document';
 
-export type KnowledgeScope = {
+export interface KnowledgeScope {
   private?: boolean;
   team?: boolean;
   public?: boolean;
   document_ids?: string[];
-};
+}
 
-export type DocumentIndexPayload = {
+export interface DocumentIndexPayload {
   doc_id: string;
   space_id: string;
   title: string;
@@ -43,7 +43,7 @@ export type DocumentIndexPayload = {
   team_id?: string | null;
   url?: string | null;
   document_version?: number;
-};
+}
 
 export type DocumentCreatePayload = Omit<
   DocumentIndexPayload,
@@ -71,7 +71,7 @@ export type DocumentRecord = Required<
   updated_at: string;
 };
 
-export type Citation = {
+export interface Citation {
   index: number;
   doc_id: string;
   chunk_id: string;
@@ -91,36 +91,40 @@ export type Citation = {
   document_version: number;
   start_offset?: number | null;
   end_offset?: number | null;
-};
+}
 
-export type KnowledgeSearchPayload = {
+export interface KnowledgeSearchPayload {
   query: string;
   scope?: KnowledgeScope;
   top_k?: number;
   mode?: 'dense' | 'keyword' | 'hybrid';
   context?: string;
-};
+}
 
-export type KnowledgeSearchResponse = {
+export interface KnowledgeSearchResponse {
   query: string;
   citations: Citation[];
-};
+  trace?: RetrievalTrace;
+}
 
-export type EditorContext = {
+export interface EditorContext {
   title: string;
   cursor_before?: string;
   cursor_after?: string;
   selected_text?: string;
   tags?: string[];
-};
+}
 
-export type AiWritePayload = {
+export interface AiWritePayload {
   intent?:
     | 'knowledge_qa'
     | 'knowledge_search'
     | 'continue_paragraph'
     | 'summarize_document'
-    | 'format_selection';
+    | 'format_selection'
+    | 'fill_in_middle'
+    | 'correct_text'
+    | 'expand_text';
   query: string;
   current_context: EditorContext;
   retrieval_domain: RetrievalDomain;
@@ -131,40 +135,46 @@ export type AiWritePayload = {
   conversation_id?: string;
   scope?: KnowledgeScope;
   stream?: boolean;
-};
+}
 
-export type DemoUser = {
+export interface DemoUser {
   user_id: string;
   username: string;
   email: string;
   space_id: string;
   team_ids: string[];
-};
+}
 
-export type AiWriteMeta = {
+export interface AiWriteMeta {
   intent: string;
   tool_call: AgentToolCall;
   retrieval_trace: RetrievalTrace;
   citations: Citation[];
   retrieved_document_count: number;
-};
+}
 
-export type AgentToolCall = {
+export interface AgentToolCall {
   name:
     | 'knowledge_search'
     | 'summarize_document'
     | 'continue_paragraph'
-    | 'format_selection';
+    | 'format_selection'
+    | 'fill_in_middle'
+    | 'correct_text'
+    | 'expand_text';
   arguments: Record<string, unknown>;
   reason: string;
   source: 'llm_function_call' | 'rule_fallback' | 'request_intent';
   selection_ms: number;
-};
+}
 
-export type RetrievalTrace = {
+export interface RetrievalTrace {
   trace_id: string;
   mode: 'dense' | 'keyword' | 'hybrid';
   rewritten_query: string;
+  query_variants: string[];
+  expansion_source: 'llm' | 'tool_call' | 'original' | 'fallback';
+  expansion_enabled: boolean;
   dense_candidates: number;
   keyword_candidates: number;
   fused_candidates: number;
@@ -174,10 +184,28 @@ export type RetrievalTrace = {
   retrieval_ms: number;
   rerank_ms: number;
   compression_ms: number;
+  preprocessing_ms: number;
   total_ms: number;
-};
+}
 
-export type RagMetrics = {
+export interface AiWriteResponse {
+  intent: AiWritePayload['intent'];
+  tool_call: AgentToolCall;
+  trace: RetrievalTrace;
+  answer: string;
+  citations: Citation[];
+}
+
+export interface EditorAssistPayload {
+  query: string;
+  title?: string;
+  cursorBefore?: string;
+  cursorAfter?: string;
+  selectedText?: string;
+  documentContent?: string;
+}
+
+export interface RagMetrics {
   search_count: number;
   completion_count: number;
   evidence_completion_count: number;
@@ -188,9 +216,9 @@ export type RagMetrics = {
   adoption_rate: number;
   helpful_count: number;
   unhelpful_count: number;
-};
+}
 
-export type AiWriteStreamHandlers = {
+export interface AiWriteStreamHandlers {
   onToolCall?: (toolCall: AgentToolCall) => void;
   onToolResult?: (result: {
     name: AgentToolCall['name'];
@@ -207,7 +235,7 @@ export type AiWriteStreamHandlers = {
     trace_id: string;
   }) => void;
   onError: (message: string) => void;
-};
+}
 
 export async function indexKnowledgeDocument(payload: DocumentIndexPayload) {
   const { data } = await ragClient.post('/documents/index', payload);
@@ -270,12 +298,45 @@ export async function searchKnowledge(payload: KnowledgeSearchPayload) {
   return data as KnowledgeSearchResponse;
 }
 
-export async function buildAiWritePrompt(payload: AiWritePayload) {
-  const { data } = await ragClient.post('/ai/write', {
-    ...payload,
-    stream: false,
-  });
-  return data as { intent: string; answer: string; citations: Citation[] };
+export async function buildAiWritePrompt(
+  payload: AiWritePayload,
+  signal?: AbortSignal,
+) {
+  const { data } = await ragClient.post(
+    '/ai/write',
+    { ...payload, stream: false },
+    { signal },
+  );
+  return data as AiWriteResponse;
+}
+
+export async function requestEditorAssist(
+  payload: EditorAssistPayload,
+  signal?: AbortSignal,
+) {
+  const title = payload.title || '当前打开文档';
+  const result = await buildAiWritePrompt(
+    {
+      query: payload.query,
+      retrieval_domain: 'current_document',
+      current_context: {
+        title,
+        cursor_before: payload.cursorBefore || '',
+        cursor_after: payload.cursorAfter || '',
+        selected_text: payload.selectedText || '',
+      },
+      current_document: {
+        title,
+        content:
+          payload.documentContent ||
+          [payload.cursorBefore, payload.selectedText, payload.cursorAfter]
+            .filter(Boolean)
+            .join('\n'),
+      },
+    },
+    signal,
+  );
+  return result.answer;
 }
 
 export async function streamAiWrite(

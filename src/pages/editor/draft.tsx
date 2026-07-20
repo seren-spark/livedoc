@@ -1,24 +1,9 @@
 import { useRef, useState, useEffect, useCallback, Suspense } from 'react';
-import {
-  Layout,
-  Button,
-  Avatar,
-  Space,
-  Input,
-  Dropdown,
-  message,
-  Badge,
-  Tooltip,
-  Switch,
-  Select,
-  Card,
-} from 'antd';
+import { Layout, Button, Avatar, Space, Input, Dropdown, message } from 'antd';
 import {
   MenuOutlined,
   ExperimentOutlined,
   DashboardOutlined,
-  SearchOutlined,
-  DatabaseOutlined,
 } from '@ant-design/icons';
 import { EditorContent } from '@tiptap/react';
 import AIEditorBubble from '@/components/AIEditorBubble';
@@ -39,19 +24,12 @@ import {
   generateLargeDocument,
 } from '@/utils/generateTestDocument';
 import marked from '@/utils/marked';
-import { QwenRAGService } from '@/utils/qwenRAGService';
-import AISuggestionBus from '@/utils/AISuggestionBus';
 import RagChatPanel from '@/components/Knowledge/RagChatPanel';
 import { useAuth } from '@/contexts/authContext';
 
 const AISuggestionPreview = React.lazy(
   () => import('@/components/AISuggestionPreview'),
 );
-
-// 导入 FIM 相关服务
-// import { HybridFIMService } from '@/utils/hybridFIMService';
-// // import { AutoFIMService, type FIMSuggestion } from '@/utils/autoFIMService';
-// import isInCodeContext from '@/utils/isInCode';
 
 const MemorizedToC = React.memo(Toc);
 
@@ -64,44 +42,6 @@ const TiptapEditor = () => {
   const [isLinkBubbleVisible, setIsLinkBubbleVisible] = useState(false);
   const [showPerformanceMonitor, setShowPerformanceMonitor] = useState(false);
   const editorContainerRef = useRef<HTMLDivElement>(null);
-  // 🔥 RAG相关状态
-  const [ragService] = useState(
-    () =>
-      new QwenRAGService(
-        import.meta.env.VITE_DASHSCOPE_API_KEY || '', // 通义千问API Key
-      ),
-  );
-  const [ragReady, setRagReady] = useState(false);
-  const [ragLoading, setRagLoading] = useState(false);
-  const [ragStats, setRagStats] = useState<any>(null);
-
-  // 🆕 历史文档相关状态
-  const [includeHistory, setIncludeHistory] = useState(false);
-  const [selectedArticles, setSelectedArticles] = useState<string[]>([]);
-  const [userArticles, setUserArticles] = useState<
-    { id: string; title: string; content: string }[]
-  >([]);
-
-  // 🆕 加载用户历史文章（从 localStorage 或 API）
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem('wisdom_ark_history_docs');
-      if (raw) {
-        const docs = JSON.parse(raw);
-        if (Array.isArray(docs)) {
-          setUserArticles(
-            docs.map((doc: any) => ({
-              id: doc.id || `doc-${Date.now()}`,
-              title: doc.title || '未命名文章',
-              content: doc.content || '',
-            })),
-          );
-        }
-      }
-    } catch (error) {
-      console.warn('加载历史文章失败', error);
-    }
-  }, []);
   const handleInsertLink = () => {
     if (!editor) return;
 
@@ -137,109 +77,6 @@ const TiptapEditor = () => {
 
     setIsLinkBubbleVisible(false);
   };
-  // =====================构建RAG索引==============================
-  const handleBuildRAG = async () => {
-    if (!editor) {
-      message.warning('编辑器未初始化');
-      return;
-    }
-    const content = editor.getText();
-    if (content.length < 500) {
-      message.warning('文档太短(少于500字),不建议使用RAG');
-      return;
-    }
-
-    setRagLoading(true);
-    const loadingMessage = message.loading('正在构建RAG索引...', 0);
-
-    try {
-      // 🆕 支持历史文档
-      const historyDocs =
-        includeHistory && selectedArticles.length > 0
-          ? userArticles.filter((article) =>
-              selectedArticles.includes(article.id),
-            )
-          : [];
-
-      await ragService.buildIndex(content, {
-        includeHistory,
-        historyDocs,
-      });
-
-      const stats = ragService.getStats();
-      setRagStats(stats);
-      setRagReady(true);
-
-      loadingMessage();
-      message.success({
-        content: (
-          <div>
-            <div>✅ RAG索引构建成功！</div>
-            <div style={{ fontSize: 12, marginTop: 4 }}>
-              共 {stats.totalChunks} 个语义块，覆盖 {stats.chapters.length}{' '}
-              个章节
-              {historyDocs.length > 0 &&
-                ` (含 ${historyDocs.length} 篇历史文章)`}
-            </div>
-          </div>
-        ),
-        duration: 3,
-      });
-    } catch (error) {
-      loadingMessage();
-      console.error('RAG构建失败', error);
-      message.error('RAG索引构建失败，请检查API配置');
-    } finally {
-      setRagLoading(false);
-    }
-  };
-
-  // 🔥 RAG智能补全
-  const handleRAGComplete = async () => {
-    if (!editor) return;
-    if (!ragReady) {
-      message.warning('请先构建RAG索引');
-      return;
-    }
-
-    const { from } = editor.state.selection;
-    const fullText = editor.getText();
-    const prefix = fullText.substring(0, from);
-    const suffix = fullText.substring(from);
-
-    const loadingMsg = message.loading('RAG检索中...', 0);
-
-    try {
-      const result = await ragService.ragComplete(prefix, suffix, {
-        topK: 3,
-        showContext: true, // 开发时可以看到检索结果
-      });
-      console.log('rag result', result);
-
-      loadingMsg();
-
-      // 使用AISuggestionBus显示建议
-      AISuggestionBus.getInstance().show({
-        id: `rag-${Date.now()}`,
-        text: result,
-        mode: 'insert',
-        position: from,
-      });
-
-      message.success('✨ RAG增强补全完成（按Tab/Enter确认）');
-    } catch (error) {
-      loadingMsg();
-      console.error('RAG补全失败', error);
-      message.error('AI补全失败');
-    }
-  };
-
-  // 🔥 重建RAG索引（文档大幅修改时）
-  const handleRebuildRAG = async () => {
-    ragService.clear();
-    setRagReady(false);
-    await handleBuildRAG();
-  };
   // 🔥 加载测试文档
   const loadTestDocument = useCallback(
     (size: 'small' | 'medium' | 'large') => {
@@ -273,13 +110,6 @@ const TiptapEditor = () => {
 
         // 自动打开性能监控
         setShowPerformanceMonitor(true);
-        // 🔥 自动提示构建RAG
-        setTimeout(() => {
-          message.info({
-            content: '💡 检测到长文档，建议构建RAG索引以提升AI补全质量',
-            duration: 5,
-          });
-        }, 1000);
       }, 100);
     },
     [editor],
@@ -303,7 +133,11 @@ const TiptapEditor = () => {
 
   useEffect(() => {
     const handleRagShortcut = (event: KeyboardEvent) => {
-      if ((event.ctrlKey || event.metaKey) && event.shiftKey && event.key.toLowerCase() === 'k') {
+      if (
+        (event.ctrlKey || event.metaKey) &&
+        event.shiftKey &&
+        event.key.toLowerCase() === 'k'
+      ) {
         event.preventDefault();
         setRagChatOpen((value) => !value);
       }
@@ -352,24 +186,6 @@ const TiptapEditor = () => {
           </div>
 
           <Space>
-            {/* 🔥 RAG控制按钮 */}
-            {ragReady && (
-              <Badge count={ragStats?.totalChunks || 0} overflowCount={999}>
-                <Tooltip
-                  title={`已索引${ragStats?.chapters.length || 0}个章节`}
-                >
-                  <Button
-                    type="primary"
-                    icon={<SearchOutlined />}
-                    onClick={handleRAGComplete}
-                    style={{ background: '#52c41a' }}
-                  >
-                    RAG智能补全
-                  </Button>
-                </Tooltip>
-              </Badge>
-            )}
-
             {/* 🔥 测试文档加载按钮 */}
             <Dropdown
               popupRender={() => (
@@ -383,122 +199,6 @@ const TiptapEditor = () => {
                     minWidth: 280,
                   }}
                 >
-                  {/* 🆕 历史文档选择 */}
-                  <Card
-                    size="small"
-                    title="📚 历史文档参考"
-                    style={{ marginBottom: 8 }}
-                    bodyStyle={{ padding: 12 }}
-                  >
-                    <Space direction="vertical" style={{ width: '100%' }}>
-                      <div
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'space-between',
-                        }}
-                      >
-                        <span style={{ fontSize: 13 }}>包含历史文章</span>
-                        <Switch
-                          size="small"
-                          checked={includeHistory}
-                          onChange={setIncludeHistory}
-                        />
-                      </div>
-
-                      {includeHistory && (
-                        <Select
-                          mode="multiple"
-                          size="small"
-                          style={{ width: '100%' }}
-                          placeholder="选择相关文章"
-                          value={selectedArticles}
-                          onChange={setSelectedArticles}
-                          maxTagCount={2}
-                          options={userArticles.map((a) => ({
-                            label: a.title,
-                            value: a.id,
-                          }))}
-                        />
-                      )}
-
-                      {includeHistory && selectedArticles.length > 0 && (
-                        <div style={{ fontSize: 12, color: '#666' }}>
-                          💡 适用于系列文章或需要参考历史内容的场景
-                        </div>
-                      )}
-                    </Space>
-                  </Card>
-
-                  {/* 原有菜单项 */}
-                  <div
-                    style={{ borderTop: '1px solid #f0f0f0', paddingTop: 8 }}
-                  >
-                    <Button
-                      type="text"
-                      block
-                      icon={<DatabaseOutlined />}
-                      onClick={handleBuildRAG}
-                      disabled={ragLoading}
-                      style={{
-                        textAlign: 'left',
-                        justifyContent: 'flex-start',
-                      }}
-                    >
-                      {ragReady ? '✅ RAG已就绪' : '🔧 构建RAG索引'}
-                    </Button>
-
-                    <Button
-                      type="text"
-                      block
-                      icon={<DatabaseOutlined />}
-                      onClick={handleRebuildRAG}
-                      disabled={!ragReady || ragLoading}
-                      style={{
-                        textAlign: 'left',
-                        justifyContent: 'flex-start',
-                      }}
-                    >
-                      🔄 重建索引
-                    </Button>
-
-                    <Button
-                      type="text"
-                      block
-                      disabled={!ragReady}
-                      onClick={() => {
-                        if (ragStats) {
-                          message.info({
-                            content: (
-                              <div>
-                                <div>📊 RAG索引统计</div>
-                                <div style={{ fontSize: 12, marginTop: 8 }}>
-                                  <div>• 语义块数：{ragStats.totalChunks}</div>
-                                  <div>
-                                    • 章节数：{ragStats.chapters.length}
-                                  </div>
-                                  <div>
-                                    • 平均块大小：{ragStats.averageChunkSize}字
-                                  </div>
-                                  <div>• 缓存命中：{ragStats.cacheSize}次</div>
-                                </div>
-                              </div>
-                            ),
-                            duration: 5,
-                          });
-                        }
-                      }}
-                      style={{
-                        textAlign: 'left',
-                        justifyContent: 'flex-start',
-                      }}
-                    >
-                      {ragStats
-                        ? `📊 ${ragStats.totalChunks}块 / ${ragStats.chapters.length}章节`
-                        : '📊 查看统计'}
-                    </Button>
-                  </div>
-
                   <div
                     style={{
                       borderTop: '1px solid #f0f0f0',
@@ -577,12 +277,8 @@ const TiptapEditor = () => {
               )}
               placement="bottomRight"
             >
-              <Button
-                type="text"
-                icon={<ExperimentOutlined />}
-                loading={ragLoading}
-              >
-                {ragLoading ? '索引构建中...' : '测试工具'}
+              <Button type="text" icon={<ExperimentOutlined />}>
+                测试工具
               </Button>
             </Dropdown>
 
@@ -609,7 +305,10 @@ const TiptapEditor = () => {
         >
           <Toolbar handleInsertLink={handleInsertLink} />
           <div style={{ marginLeft: 'auto', display: 'flex', gap: '8px' }}>
-            <AIEditorToolbar editor={editor} onOpenRag={() => setRagChatOpen(true)} />
+            <AIEditorToolbar
+              editor={editor}
+              onOpenRag={() => setRagChatOpen(true)}
+            />
           </div>
         </div>
       </Header>

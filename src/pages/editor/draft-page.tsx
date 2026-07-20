@@ -7,15 +7,12 @@ import {
   Input,
   Dropdown,
   message,
-  Badge,
-  Tooltip,
   Spin,
 } from 'antd';
 import {
   MenuOutlined,
   ExperimentOutlined,
   DashboardOutlined,
-  SearchOutlined,
   DatabaseOutlined,
   LoadingOutlined,
 } from '@ant-design/icons';
@@ -39,8 +36,6 @@ import {
   generateLargeDocument,
 } from '@/utils/generateTestDocument';
 import marked from '@/utils/marked';
-import { QwenRAGService } from '@/utils/qwenRAGService';
-import AISuggestionBus from '@/utils/AISuggestionBus';
 import { PagedEditorManager } from '@/pages/editor/managers/PagedEditorManager';
 import { DocumentConverter } from '@/pages/editor/utils/DocumentConverter';
 import '@/pages/editor/styles/paged-editor.css';
@@ -48,11 +43,6 @@ import '@/pages/editor/styles/paged-editor.css';
 const AISuggestionPreview = React.lazy(
   () => import('@/components/AISuggestionPreview'),
 );
-
-// 导入 FIM 相关服务
-// import { HybridFIMService } from '@/utils/hybridFIMService';
-// // import { AutoFIMService, type FIMSuggestion } from '@/utils/autoFIMService';
-// import isInCodeContext from '@/utils/isInCode';
 
 const MemorizedToC = React.memo(Toc);
 
@@ -71,16 +61,6 @@ const TiptapEditor = () => {
   const isPagedModeRef = useRef(false); // 使用 ref 跟踪分页模式状态，避免闭包问题
   const normalTocCleanupRef = useRef<(() => void) | null>(null); // 存储普通模式TOC监听器的清理函数
 
-  // 🔥 RAG相关状态
-  const [ragService] = useState(
-    () =>
-      new QwenRAGService(
-        import.meta.env.VITE_DASHSCOPE_API_KEY || '', // 通义千问API Key
-      ),
-  );
-  const [ragReady, setRagReady] = useState(false);
-  const [ragLoading, setRagLoading] = useState(false);
-  const [ragStats, setRagStats] = useState<any>(null); // 现有的代码保持不变
   const handleInsertLink = () => {
     if (!editor) return;
 
@@ -115,98 +95,6 @@ const TiptapEditor = () => {
       .run();
 
     setIsLinkBubbleVisible(false);
-  };
-  // =====================🔥 构建RAG索引==============================
-  const handleBuildRAG = async () => {
-    if (!editor) {
-      message.warning('编辑器未初始化');
-      return;
-    }
-
-    const content = editor.getText();
-
-    if (content.length < 500) {
-      message.warning('文档太短（少于500字），不建议使用RAG');
-      return;
-    }
-
-    setRagLoading(true);
-    const loadingMessage = message.loading('正在构建RAG索引...', 0);
-
-    try {
-      await ragService.buildIndex(content);
-
-      const stats = ragService.getStats();
-      setRagStats(stats);
-      setRagReady(true);
-
-      loadingMessage();
-      message.success({
-        content: (
-          <div>
-            <div>✅ RAG索引构建成功！</div>
-            <div style={{ fontSize: 12, marginTop: 4 }}>
-              共 {stats.totalChunks} 个语义块，覆盖 {stats.chapters.length}{' '}
-              个章节
-            </div>
-          </div>
-        ),
-        duration: 3,
-      });
-    } catch (error) {
-      loadingMessage();
-      console.error('RAG构建失败', error);
-      message.error('RAG索引构建失败，请检查API配置');
-    } finally {
-      setRagLoading(false);
-    }
-  };
-
-  // 🔥 RAG智能补全
-  const handleRAGComplete = async () => {
-    if (!editor) return;
-    if (!ragReady) {
-      message.warning('请先构建RAG索引');
-      return;
-    }
-
-    const { from } = editor.state.selection;
-    const fullText = editor.getText();
-    const prefix = fullText.substring(0, from);
-    const suffix = fullText.substring(from);
-
-    const loadingMsg = message.loading('RAG检索中...', 0);
-
-    try {
-      const result = await ragService.ragComplete(prefix, suffix, {
-        topK: 3,
-        showContext: true, // 开发时可以看到检索结果
-      });
-      console.log('rag result', result);
-
-      loadingMsg();
-
-      // 使用AISuggestionBus显示建议
-      AISuggestionBus.getInstance().show({
-        id: `rag-${Date.now()}`,
-        text: result,
-        mode: 'insert',
-        position: from,
-      });
-
-      message.success('✨ RAG增强补全完成（按Tab/Enter确认）');
-    } catch (error) {
-      loadingMsg();
-      console.error('RAG补全失败', error);
-      message.error('AI补全失败');
-    }
-  };
-
-  // 🔥 重建RAG索引（文档大幅修改时）
-  const handleRebuildRAG = async () => {
-    ragService.clear();
-    setRagReady(false);
-    await handleBuildRAG();
   };
   // 🔥 转换为分页文档
   const handleConvertToPagedDoc = useCallback(async () => {
@@ -366,13 +254,6 @@ const TiptapEditor = () => {
 
         // 自动打开性能监控
         setShowPerformanceMonitor(true);
-        // 🔥 自动提示构建RAG
-        setTimeout(() => {
-          message.info({
-            content: '💡 检测到长文档，建议构建RAG索引以提升AI补全质量',
-            duration: 5,
-          });
-        }, 1000);
       }, 100);
     },
     [editor],
@@ -534,70 +415,10 @@ const TiptapEditor = () => {
           </div>
 
           <Space>
-            {/* 🔥 RAG控制按钮 */}
-            {ragReady && (
-              <Badge count={ragStats?.totalChunks || 0} overflowCount={999}>
-                <Tooltip
-                  title={`已索引${ragStats?.chapters.length || 0}个章节`}
-                >
-                  <Button
-                    type="primary"
-                    icon={<SearchOutlined />}
-                    onClick={handleRAGComplete}
-                    style={{ background: '#52c41a' }}
-                  >
-                    RAG智能补全
-                  </Button>
-                </Tooltip>
-              </Badge>
-            )}
-
             {/* 🔥 测试文档加载按钮 */}
             <Dropdown
               menu={{
                 items: [
-                  {
-                    key: 'build-rag',
-                    label: ragReady ? '✅ RAG已就绪' : '🔧 构建RAG索引',
-                    icon: <DatabaseOutlined />,
-                    onClick: handleBuildRAG,
-                    disabled: ragLoading,
-                  },
-                  {
-                    key: 'rebuild-rag',
-                    label: '🔄 重建索引',
-                    icon: <DatabaseOutlined />,
-                    onClick: handleRebuildRAG,
-                    disabled: !ragReady || ragLoading,
-                  },
-                  {
-                    key: 'rag-stats',
-                    label: ragStats
-                      ? `📊 ${ragStats.totalChunks}块 / ${ragStats.chapters.length}章节`
-                      : '📊 查看统计',
-                    disabled: !ragReady,
-                    onClick: () => {
-                      if (ragStats) {
-                        message.info({
-                          content: (
-                            <div>
-                              <div>📊 RAG索引统计</div>
-                              <div style={{ fontSize: 12, marginTop: 8 }}>
-                                <div>• 语义块数：{ragStats.totalChunks}</div>
-                                <div>• 章节数：{ragStats.chapters.length}</div>
-                                <div>
-                                  • 平均块大小：{ragStats.averageChunkSize}字
-                                </div>
-                                <div>• 缓存命中：{ragStats.cacheSize}次</div>
-                              </div>
-                            </div>
-                          ),
-                          duration: 5,
-                        });
-                      }
-                    },
-                  },
-                  { type: 'divider' },
                   {
                     key: 'convert-to-paged',
                     label: '📄 转换为分页格式',
@@ -653,15 +474,8 @@ const TiptapEditor = () => {
               }}
               placement="bottomRight"
             >
-              {/* <Button type="text" icon={<ExperimentOutlined />}>
+              <Button type="text" icon={<ExperimentOutlined />}>
                 测试工具
-              </Button> */}
-              <Button
-                type="text"
-                icon={<ExperimentOutlined />}
-                loading={ragLoading}
-              >
-                {ragLoading ? '索引构建中...' : '测试工具'}
               </Button>
             </Dropdown>
 

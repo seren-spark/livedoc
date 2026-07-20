@@ -1,13 +1,15 @@
 import type React from 'react';
 import { useRef, useState } from 'react';
-import { Input, Button, Space, Card, Tooltip, Dropdown } from 'antd';
+import { Input, Button, Space, Card, Tooltip, Dropdown, Select } from 'antd';
 import {
   SendOutlined,
   AudioOutlined,
   AppstoreAddOutlined,
   LoadingOutlined,
+  StopOutlined,
 } from '@ant-design/icons';
 import './index.scss';
+import type { RetrievalDomain } from '@/api/rag';
 
 interface InputAreaProps {
   quickActions: {
@@ -21,6 +23,9 @@ interface InputAreaProps {
   setAiType: (aiType: any) => void;
   handleSendMessage: (message: string) => void;
   msgLoading: boolean;
+  retrievalDomain: RetrievalDomain;
+  onRetrievalDomainChange: (domain: RetrievalDomain) => void;
+  onStop: () => void;
 }
 
 const { TextArea } = Input;
@@ -39,6 +44,9 @@ function InputArea({
   setAiType,
   handleSendMessage,
   msgLoading,
+  retrievalDomain,
+  onRetrievalDomainChange,
+  onStop,
 }: InputAreaProps) {
   const [inputValue, setInputValue] = useState('');
   const [isListening, setIsListening] = useState(false);
@@ -171,6 +179,18 @@ function InputArea({
           </Space>
 
           <Space>
+            <Select<RetrievalDomain>
+              size="small"
+              variant="borderless"
+              value={retrievalDomain}
+              onChange={onRetrievalDomainChange}
+              options={[
+                { label: '公开知识库', value: 'public' },
+                { label: '我的文档', value: 'private' },
+                { label: '团队文档', value: 'team' },
+              ]}
+              aria-label="检索范围"
+            />
             {isListening ? (
               <Tooltip title="停止语音输入">
                 <Button
@@ -192,15 +212,27 @@ function InputArea({
                 />
               </Tooltip>
             )}
-            <Button
-              type="primary"
-              icon={<SendOutlined style={{ fontSize: '16px' }} />}
-              size="small"
-              className="send-button"
-              style={{ borderRadius: '6px' }}
-              onClick={handleGainMessage}
-              disabled={!inputValue.trim() || msgLoading}
-            />
+            {msgLoading ? (
+              <Button
+                danger
+                type="primary"
+                icon={<StopOutlined style={{ fontSize: '16px' }} />}
+                size="small"
+                className="send-button"
+                style={{ borderRadius: '6px' }}
+                onClick={onStop}
+              />
+            ) : (
+              <Button
+                type="primary"
+                icon={<SendOutlined style={{ fontSize: '16px' }} />}
+                size="small"
+                className="send-button"
+                style={{ borderRadius: '6px' }}
+                onClick={handleGainMessage}
+                disabled={!inputValue.trim()}
+              />
+            )}
           </Space>
         </div>
       </Card>

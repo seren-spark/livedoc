@@ -1,10 +1,11 @@
 //带有AI建议的代码块
 
+/* eslint-disable @typescript-eslint/ban-ts-comment */
 // @ts-nocheck
 import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight';
 import { Plugin, PluginKey, TextSelection } from '@tiptap/pm/state';
 import { Decoration, DecorationSet } from '@tiptap/pm/view';
-import { HybridFIMService } from '@/utils/hybridFIMService';
+import { requestEditorAssist } from '@/api/rag';
 
 import type { Transaction } from 'prosemirror-state';
 import { ReactNodeViewRenderer } from '@tiptap/react';
@@ -16,7 +17,6 @@ const CodeBlockWithSuggestion = CodeBlockLowlight.extend({
     return ReactNodeViewRenderer(CodeBlock);
   },
   addProseMirrorPlugins() {
-    let fimService: HybridFIMService | null = null; //FIM服务实例
     let suggestionTimeout: string | number | NodeJS.Timeout | null | undefined =
       null; // 建议定时器
     let currentSuggestion: string | null = null; // 当前建议
@@ -33,24 +33,12 @@ const CodeBlockWithSuggestion = CodeBlockLowlight.extend({
       const suffixKey = suffix.slice(0, 64); // 只取开头64字符
       return `${prefixKey}|${suffixKey}`;
     };
-    // 初始化 FIM 服务
-    const initFIMService = () => {
-      if (!fimService) {
-        fimService = new HybridFIMService();
-      }
-    };
-
     // 生成 AI 建议
     const generateSuggestion = async (
       prefix: string,
       suffix: string,
       abortSignal: AbortSignal,
     ) => {
-      if (!fimService) {
-        initFIMService();
-        return null;
-      }
-
       try {
         // 检查是否已被取消
         if (abortSignal?.aborted) {
@@ -58,50 +46,16 @@ const CodeBlockWithSuggestion = CodeBlockLowlight.extend({
 
           return null;
         }
-        console.log('发起AI建议请求...');
-        //❌ 问题2：无法取消进行中的 LLM 请求
-        //这里返回模拟数据，实际使用时取消注释 需要传入 abortSignal
-        const suggestion = await fimService.fillInMiddle(prefix, suffix, {
-          maxTokens: 100,
-          temperature: 0.7,
-          topP: 0.9,
-          signal: abortSignal,
-        });
+        const suggestion = await requestEditorAssist(
+          {
+            query: '请在代码光标位置进行 FIM 中间补全，只返回需要插入的代码',
+            title: '当前代码块',
+            cursorBefore: prefix,
+            cursorAfter: suffix,
+          },
+          abortSignal,
+        );
         return suggestion;
-
-        // return `let timer = null;
-        // return function (fn, time) {
-        //   if(timer){
-        //     clearTimeout(timer);
-        //   }
-        //   timer = setTimeout(() => {
-        //     fn.apply(this, arguments);
-        //   },time)
-        // }`;
-
-        // 模拟数据（实际使用时删除）
-        return new Promise<string>((resolve, reject) => {
-          const timer = setTimeout(() => {
-            if (abortSignal?.aborted) {
-              reject(new DOMException('Request aborted', 'AbortError'));
-              return;
-            }
-            resolve(`let timer = null;
-            return function (fn, time) {
-              if(timer){
-                clearTimeout(timer);
-              }
-              timer = setTimeout(() => {
-                fn.apply(this, arguments);
-              },time)
-            }`);
-          }, 500); // 模拟网络延迟
-
-          abortSignal?.addEventListener('abort', () => {
-            clearTimeout(timer);
-            reject(new DOMException('Request aborted', 'AbortError'));
-          });
-        });
       } catch (error) {
         // ✨ 区分取消错误和其他错误
         if ((error as any).name === 'AbortError') {

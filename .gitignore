@@ -28,6 +28,9 @@ dist-ssr
 
 # Authentication tokens
 .npmrc
+
+# Local legacy archive (contains old code and secrets)
+archive/
 # ========================================
 # 虚拟化技术文档（不提交）
 # ========================================

@@ -4,7 +4,6 @@ import {
   Drawer,
   Input,
   Select,
-  Tag,
   Tooltip,
   Typography,
   message,
@@ -13,22 +12,19 @@ import type { Editor } from '@tiptap/react';
 import ReactMarkdown from 'react-markdown';
 import {
   ChevronDown,
-  ExternalLink,
   FilePlus2,
-  Globe2,
   LibraryBig,
-  LockKeyhole,
   Plus,
   Send,
   Square,
   ThumbsDown,
   ThumbsUp,
-  Users,
   X,
 } from 'lucide-react';
 import { useSelector } from 'react-redux';
 import type { RootState } from '@/store';
 import type { UserState } from '@/store/modules/userSlice';
+import CitationList, { citationVisibilityLabel } from './CitationList';
 import marked from '@/utils/marked';
 import {
   streamAiWrite,
@@ -45,7 +41,7 @@ const { TextArea } = Input;
 
 type TurnStatus = 'retrieving' | 'streaming' | 'done' | 'error' | 'stopped';
 
-type ConversationTurn = {
+interface ConversationTurn {
   id: string;
   question: string;
   citations: Citation[];
@@ -58,15 +54,15 @@ type ConversationTurn = {
   trace?: RetrievalTrace;
   feedback?: 'inserted' | 'helpful' | 'unhelpful';
   error?: string;
-};
+}
 
-type RagChatPanelProps = {
+interface RagChatPanelProps {
   editor: Editor | null;
   title: string;
   open: boolean;
   onClose: () => void;
   onRequireLogin: (callback: () => void) => void;
-};
+}
 
 const domainOptions = [
   { label: '全部公开知识库', value: 'public' },
@@ -75,23 +71,14 @@ const domainOptions = [
   { label: '当前打开文档', value: 'current_document' },
 ];
 
-const visibilityLabels: Record<string, string> = {
-  public: '公开',
-  private: '私有',
-  team: '团队',
-};
-
-const visibilityColors: Record<string, string> = {
-  public: 'green',
-  private: 'blue',
-  team: 'gold',
-};
-
 const toolLabels: Record<AgentToolCall['name'], string> = {
   knowledge_search: '知识库检索',
   summarize_document: '当前文档摘要',
   continue_paragraph: '上下文续写',
   format_selection: '选区优化',
+  fill_in_middle: '光标补全',
+  correct_text: '文本改错',
+  expand_text: '文本扩写',
 };
 
 const toolSourceLabels: Record<AgentToolCall['source'], string> = {
@@ -145,103 +132,6 @@ function sanitizeHtml(html: string) {
     });
   });
   return documentNode.body.innerHTML;
-}
-
-function permissionIcon(citation: Citation) {
-  if (citation.source_type === 'current_document')
-    return <FilePlus2 size={13} />;
-  if (citation.visibility === 'team') return <Users size={13} />;
-  if (citation.visibility === 'private') return <LockKeyhole size={13} />;
-  return <Globe2 size={13} />;
-}
-
-function CitationCard({
-  citation,
-  turnId,
-  onOpenOriginal,
-}: {
-  citation: Citation;
-  turnId: string;
-  onOpenOriginal: (citation: Citation) => void;
-}) {
-  const [expanded, setExpanded] = useState(false);
-  const isCurrentDocument = citation.source_type === 'current_document';
-  const canOpen = Boolean(citation.url || isCurrentDocument);
-
-  return (
-    <article
-      className="rag-source-card"
-      id={`rag-source-${turnId}-${citation.index}`}
-    >
-      <div className="rag-source-card__header">
-        <div className="rag-source-card__title-wrap">
-          <span className="rag-source-card__index">{citation.index}</span>
-          <Text
-            strong
-            ellipsis={{ tooltip: citation.title }}
-            className="rag-source-card__title"
-          >
-            {citation.title}
-          </Text>
-        </div>
-        <Text className="rag-source-card__score">
-          {Math.min(100, Math.max(0, Math.round(citation.score * 100)))}%
-        </Text>
-      </div>
-      <div className="rag-source-card__meta">
-        <Tag
-          icon={permissionIcon(citation)}
-          color={
-            isCurrentDocument ? 'cyan' : visibilityColors[citation.visibility]
-          }
-        >
-          {isCurrentDocument
-            ? '当前文档'
-            : visibilityLabels[citation.visibility] || citation.visibility}
-        </Tag>
-        {citation.heading_path?.length > 0 && (
-          <Text type="secondary" ellipsis className="rag-source-card__path">
-            {citation.heading_path.join(' / ')}
-          </Text>
-        )}
-      </div>
-      <p
-        className={
-          expanded
-            ? 'rag-source-card__content is-expanded'
-            : 'rag-source-card__content'
-        }
-      >
-        {citation.content}
-      </p>
-      {expanded && (
-        <div className="rag-source-card__details">
-          <span>文档版本 v{citation.document_version}</span>
-          <span>chunk {citation.chunk_index ?? '-'}</span>
-        </div>
-      )}
-      <div className="rag-source-card__actions">
-        <Button
-          type="link"
-          size="small"
-          onClick={() => setExpanded((value) => !value)}
-        >
-          {expanded ? '收起完整片段' : '查看完整片段'}
-        </Button>
-        <Tooltip title={canOpen ? undefined : '该资料暂无原文地址'}>
-          <Button
-            type="text"
-            size="small"
-            icon={<ExternalLink size={14} />}
-            disabled={!canOpen}
-            onClick={() => onOpenOriginal(citation)}
-          >
-            原文
-          </Button>
-        </Tooltip>
-      </div>
-    </article>
-  );
 }
 
 export default function RagChatPanel({
@@ -437,10 +327,7 @@ export default function RagChatPanel({
     if (!editor || !turn.hasEvidence || !turn.answer.trim()) return;
     const references = turn.citations
       .map((citation) => {
-        const permission =
-          citation.source_type === 'current_document'
-            ? '当前文档'
-            : visibilityLabels[citation.visibility] || citation.visibility;
+        const permission = citationVisibilityLabel(citation);
         const link = citation.url ? ` - ${citation.url}` : '';
         return `${citation.index}. ${citation.title}（${permission}）${link}`;
       })
@@ -568,14 +455,11 @@ export default function RagChatPanel({
 
               {turn.sourcesExpanded && turn.citations.length > 0 && (
                 <div className="rag-turn__sources">
-                  {turn.citations.map((citation) => (
-                    <CitationCard
-                      key={citation.chunk_id}
-                      citation={citation}
-                      turnId={turn.id}
-                      onOpenOriginal={openOriginal}
-                    />
-                  ))}
+                  <CitationList
+                    citations={turn.citations}
+                    idPrefix={`rag-source-${turn.id}`}
+                    onOpenOriginal={openOriginal}
+                  />
                 </div>
               )}
 
@@ -643,7 +527,9 @@ export default function RagChatPanel({
                     </Tooltip>
                     <Tooltip title="无帮助">
                       <Button
-                        type={turn.feedback === 'unhelpful' ? 'primary' : 'text'}
+                        type={
+                          turn.feedback === 'unhelpful' ? 'primary' : 'text'
+                        }
                         danger={turn.feedback === 'unhelpful'}
                         size="small"
                         icon={<ThumbsDown size={14} />}

@@ -1,8 +1,8 @@
+/* eslint-disable @typescript-eslint/ban-ts-comment */
 // @ts-nocheck
 import { Node, mergeAttributes } from '@tiptap/core';
 import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight';
 import { Plugin, PluginKey, TextSelection } from '@tiptap/pm/state';
-import { HybridFIMService } from '@/utils/hybridFIMService';
 import isInCodeContext from '@/utils/isInCode';
 import { codeBlock } from '@tiptap/extension-code-block';
 
@@ -255,4 +255,3 @@ const CodeBlockWithSuggestion = CodeBlockLowlight.extend({
 });
 
 export default CodeBlockWithSuggestion;
-// @ts-nocheck

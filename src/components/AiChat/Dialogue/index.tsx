@@ -3,6 +3,8 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { Layout, Button } from 'antd';
 import { DownOutlined } from '@ant-design/icons';
 import { FixedMarkdownRenderer } from './FixedMDRenderer';
+import CitationList from '@/components/Knowledge/CitationList';
+import type { Citation } from '@/api/rag';
 import './index.scss';
 
 const { Content } = Layout;
@@ -12,6 +14,7 @@ interface Message {
   role: 'user' | 'assistant';
   content: string;
   timestamp: Date;
+  citations?: Citation[];
 }
 
 interface DialogueProps {
@@ -52,6 +55,24 @@ const ChatMessage: React.FC<{
               <span className="cursor">|</span>
             )}
           </div>
+          {message.role === 'assistant' &&
+            Boolean(message.citations?.length) && (
+              <div style={{ marginTop: 14 }}>
+                <CitationList
+                  citations={message.citations || []}
+                  idPrefix={`ai-source-${message.id}`}
+                  onOpenOriginal={(citation) => {
+                    if (citation.url) {
+                      window.open(
+                        citation.url,
+                        '_blank',
+                        'noopener,noreferrer',
+                      );
+                    }
+                  }}
+                />
+              </div>
+            )}
         </div>
 
         <div

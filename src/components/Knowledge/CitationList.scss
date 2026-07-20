@@ -1,0 +1,35 @@
+.citation-list {
+  display: grid;
+  gap: 10px;
+}
+
+.citation-card {
+  border-radius: 10px;
+
+  &__index {
+    display: inline-flex;
+    width: 22px;
+    height: 22px;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    background: #eaf2ff;
+    color: #1d66d0;
+    font-size: 12px;
+    font-weight: 700;
+  }
+
+  &__content {
+    display: -webkit-box;
+    margin: 0;
+    overflow: hidden;
+    color: #475569;
+    line-height: 1.65;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 3;
+
+    &.is-expanded {
+      display: block;
+    }
+  }
+}
