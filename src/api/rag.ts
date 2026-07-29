@@ -63,7 +63,9 @@ export type DocumentRecord = Required<
   owner_id?: string | null;
   url?: string | null;
   document_version: number;
-  index_status: 'pending' | 'indexing' | 'ready' | 'failed';
+  index_status: 'pending' | 'queued' | 'indexing' | 'ready' | 'failed';
+  active_index_version?: number | null;
+  latest_index_job_id?: string | null;
   chunk_count: number;
   indexed_at?: string | null;
   index_error?: string | null;
@@ -216,6 +218,33 @@ export interface RagMetrics {
   adoption_rate: number;
   helpful_count: number;
   unhelpful_count: number;
+  window: '24h' | '7d' | '30d';
+  from_time?: string | null;
+  to_time?: string | null;
+  p50_generation_ms: number;
+  p95_generation_ms: number;
+  error_rate: number;
+  queue_depth: number;
+}
+
+export interface IndexJob {
+  job_id: string;
+  doc_id: string;
+  document_version: number;
+  status:
+    | 'queued'
+    | 'running'
+    | 'retry_wait'
+    | 'succeeded'
+    | 'failed'
+    | 'superseded'
+    | 'canceled';
+  attempts: number;
+  created_at: string;
+  started_at?: string | null;
+  finished_at?: string | null;
+  next_run_at?: string | null;
+  error?: string | null;
 }
 
 export interface AiWriteStreamHandlers {
@@ -285,12 +314,7 @@ export async function deleteKnowledgeDocument(docId: string) {
 
 export async function reindexKnowledgeDocument(docId: string) {
   const { data } = await ragClient.post(`/documents/${docId}/reindex`);
-  return data as {
-    doc_id: string;
-    chunk_count: number;
-    status: 'ready' | 'failed';
-    document_version: number;
-  };
+  return data as IndexJob;
 }
 
 export async function searchKnowledge(payload: KnowledgeSearchPayload) {
@@ -445,7 +469,9 @@ export async function submitAiFeedback(
   return data as { status: 'recorded'; trace_id: string; action: string };
 }
 
-export async function getRagMetrics() {
-  const { data } = await ragClient.get('/metrics/rag');
+export async function getRagMetrics(window: '24h' | '7d' | '30d' = '24h') {
+  const { data } = await ragClient.get('/metrics/rag', {
+    params: { window },
+  });
   return data as RagMetrics;
 }

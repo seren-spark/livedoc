@@ -58,6 +58,7 @@ type SpaceKey =
 
 const statusColor: Record<DocumentRecord['index_status'], string> = {
   pending: 'default',
+  queued: 'warning',
   indexing: 'processing',
   ready: 'success',
   failed: 'error',
@@ -65,6 +66,7 @@ const statusColor: Record<DocumentRecord['index_status'], string> = {
 
 const statusLabel: Record<DocumentRecord['index_status'], string> = {
   pending: '待索引',
+  queued: '排队中',
   indexing: '索引中',
   ready: '已就绪',
   failed: '失败',
@@ -136,6 +138,9 @@ export default function KnowledgePage() {
   const [editing, setEditing] = useState<DocumentRecord | null>(null);
   const [saving, setSaving] = useState(false);
   const [metrics, setMetrics] = useState<RagMetrics | null>(null);
+  const [metricsWindow, setMetricsWindow] = useState<'24h' | '7d' | '30d'>(
+    '24h',
+  );
   const [selectedSpace, setSelectedSpace] = useState<SpaceKey>('private');
   const [selectedFolder, setSelectedFolder] = useState('全部文档');
   const [keyword, setKeyword] = useState('');
@@ -169,7 +174,7 @@ export default function KnowledgePage() {
       return;
     }
     try {
-      setMetrics(await getRagMetrics());
+      setMetrics(await getRagMetrics(metricsWindow));
     } catch (error) {
       console.error(error);
     }
@@ -177,7 +182,20 @@ export default function KnowledgePage() {
 
   useEffect(() => {
     void Promise.all([loadDocs(), loadMetrics()]);
-  }, [isLoggedIn]);
+  }, [isLoggedIn, metricsWindow]);
+
+  useEffect(() => {
+    if (
+      !isLoggedIn ||
+      !docs.some((doc) => ['queued', 'indexing'].includes(doc.index_status))
+    ) {
+      return;
+    }
+    const timer = window.setInterval(() => {
+      void Promise.all([loadDocs(), loadMetrics()]);
+    }, 2000);
+    return () => window.clearInterval(timer);
+  }, [docs, isLoggedIn, metricsWindow]);
 
   useEffect(() => {
     setSelectedFolder('全部文档');
@@ -383,6 +401,12 @@ export default function KnowledgePage() {
             {statusLabel[record.index_status]}
           </Tag>
           <Text type="secondary">{record.chunk_count} chunks</Text>
+          {record.active_index_version && (
+            <Text type="secondary">
+              serving v{record.active_index_version} / content v
+              {record.document_version}
+            </Text>
+          )}
         </Space>
       ),
     },
@@ -410,6 +434,7 @@ export default function KnowledgePage() {
             <Button
               size="small"
               icon={<RetweetOutlined />}
+              disabled={['queued', 'indexing'].includes(record.index_status)}
               onClick={() => reindex(record)}
             />
           </Tooltip>
@@ -555,11 +580,22 @@ export default function KnowledgePage() {
         </header>
 
         {isLoggedIn && metrics && (
-          <section className="knowledge-observability" aria-label="RAG 运行指标">
-            <div>
-              <Text type="secondary">本进程检索</Text>
-              <strong>{metrics.search_count}</strong>
-              <span>次可追踪请求</span>
+            <section className="knowledge-observability" aria-label="RAG 运行指标">
+              <div>
+                <Text type="secondary">
+                  <Select
+                    size="small"
+                    value={metricsWindow}
+                    onChange={setMetricsWindow}
+                    options={[
+                      { label: '近 24 小时', value: '24h' },
+                      { label: '近 7 天', value: '7d' },
+                      { label: '近 30 天', value: '30d' },
+                    ]}
+                  />
+                </Text>
+                <strong>{metrics.search_count}</strong>
+                <span>次持久化请求 · 队列 {metrics.queue_depth}</span>
             </div>
             <div>
               <Text type="secondary">检索 P95</Text>
@@ -624,6 +660,7 @@ export default function KnowledgePage() {
             options={[
               { label: '全部状态', value: 'all' },
               { label: '已就绪', value: 'ready' },
+              { label: '排队中', value: 'queued' },
               { label: '索引中', value: 'indexing' },
               { label: '待索引', value: 'pending' },
               { label: '失败', value: 'failed' },
