@@ -1,5 +1,6 @@
 import { Editor, Extension } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
+import { Markdown } from '@tiptap/markdown';
 import Blockquote from '@tiptap/extension-blockquote';
 import { Mathematics } from '@tiptap/extension-mathematics';
 import { TableKit } from '@tiptap/extension-table';
@@ -32,8 +33,6 @@ import { setTocItems } from '@/store/modules/tocSlice';
 // import { useDispatch } from 'react-redux';
 import store from '@/store';
 import CodeBlockWithSuggestion from '../extensions/CodeBlockWithSuggestion';
-import marked from '@/utils/marked';
-// import { Markdown } from 'tiptap-markdown';
 import BlockAttributes from '../extensions/BlockAttributes';
 import VirtualScroll from '../extensions/VirtualScroll'; // ✅ Decoration + content-visibility 方案
 import { PageBreak } from '../extensions/PageBreak'; // 🔥 分页加载方案的页面分隔节点
@@ -152,6 +151,7 @@ const editor = new Editor({
       codeBlock: false,
       // CustomParagraph,
     }),
+    Markdown,
     // StarterKit,
     // Highlight,
     // Typography,
@@ -179,8 +179,8 @@ const editor = new Editor({
       preloadMargin: '800px', // 预加载边距
       scrollContainerSelector: '#tiptap', // 🔥 修复：使用 ID 选择器匹配 draft.tsx
       enableWhileEditing: false, // 编辑时暂停虚拟化
-      enableDebugLog: true, // 🔧 临时开启调试日志排查问题
-      enableVisualDebug: true, // 🔧 临时开启可视化调试
+      enableDebugLog: false,
+      enableVisualDebug: false,
     }),
 
     TaskList,
@@ -293,9 +293,11 @@ const editor = new Editor({
 
         event.preventDefault();
 
-        const rendered = String(marked.parse(text));
-        // Insert as HTML so Tiptap converts to proper nodes
-        editor.chain().focus().insertContent(rendered).run();
+        editor
+          .chain()
+          .focus()
+          .insertContent(text, { contentType: 'markdown' })
+          .run();
         return true;
       } catch (e) {
         // Fallback to default behavior on any error

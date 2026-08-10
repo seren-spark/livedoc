@@ -1,6 +1,5 @@
 import { Suspense } from 'react';
 import './App.scss';
-import '@/mock';
 
 // import useRouter from '@/router/index';
 // import routes from '~react-pages';

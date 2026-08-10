@@ -124,8 +124,9 @@ export default function AiContent({ timePeriod, userName }: AiContentProps) {
           },
         },
         {
-          onMeta: (meta) =>
-            updateAssistant(assistantMessage.id, { citations: meta.citations }),
+          onMeta: () => undefined,
+          onCitations: (citations) =>
+            updateAssistant(assistantMessage.id, { citations }),
           onDelta: (delta) => appendAssistantDelta(assistantMessage.id, delta),
           onDone: () => setMsgLoading(false),
           onError: (errorMessage) => {

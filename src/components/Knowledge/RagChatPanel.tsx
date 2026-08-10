@@ -22,10 +22,11 @@ import {
   X,
 } from 'lucide-react';
 import { useSelector } from 'react-redux';
+import { useNavigate } from 'react-router-dom';
 import type { RootState } from '@/store';
 import type { UserState } from '@/store/modules/userSlice';
+import { locateCitationRange } from '@/lib/citation-location';
 import CitationList, { citationVisibilityLabel } from './CitationList';
-import marked from '@/utils/marked';
 import {
   streamAiWrite,
   submitAiFeedback,
@@ -50,6 +51,7 @@ interface ConversationTurn {
   status: TurnStatus;
   sourcesExpanded: boolean;
   hasEvidence: boolean;
+  canInsert: boolean;
   toolCall?: AgentToolCall;
   trace?: RetrievalTrace;
   feedback?: 'inserted' | 'helpful' | 'unhelpful';
@@ -71,14 +73,34 @@ const domainOptions = [
   { label: '当前打开文档', value: 'current_document' },
 ];
 
+const exampleQuestions: Record<RetrievalDomain, string[]> = {
+  public: [
+    'LiveDoc 的 AI 写作结果为什么不能直接写入正文？',
+    'SSE 写作链路包含哪些事件？',
+    '四个 Agent 工具分别是什么？',
+  ],
+  private: [
+    'Alice 的 RAG 演示链路依次经过哪些阶段？',
+    '私有演示文档中的检索验收口令是什么？',
+    '为什么文档更新要使用新版本原子激活？',
+  ],
+  team: [
+    'Alpha 团队如何校验并展示引用？',
+    '证据不足时系统应该怎么回答？',
+    '引用版本过期时为什么不能定位到新版内容？',
+  ],
+  current_document: [
+    '总结当前文档的核心内容',
+    '提取当前文档中的关键步骤',
+    '这篇文档还有哪些信息没有解释清楚？',
+  ],
+};
+
 const toolLabels: Record<AgentToolCall['name'], string> = {
-  knowledge_search: '知识库检索',
-  summarize_document: '当前文档摘要',
+  search_knowledge_base: '知识库检索',
+  summarize_current_document: '当前文档摘要',
   continue_paragraph: '上下文续写',
-  format_selection: '选区优化',
-  fill_in_middle: '光标补全',
-  correct_text: '文本改错',
-  expand_text: '文本扩写',
+  optimize_format: '选区优化',
 };
 
 const toolSourceLabels: Record<AgentToolCall['source'], string> = {
@@ -114,26 +136,6 @@ function getEditorContext(editor: Editor | null) {
   };
 }
 
-function sanitizeHtml(html: string) {
-  const documentNode = new DOMParser().parseFromString(html, 'text/html');
-  documentNode
-    .querySelectorAll('script,style,iframe,object,embed')
-    .forEach((node) => node.remove());
-  documentNode.body.querySelectorAll('*').forEach((node) => {
-    Array.from(node.attributes).forEach((attribute) => {
-      if (attribute.name.toLowerCase().startsWith('on'))
-        node.removeAttribute(attribute.name);
-      if (
-        ['href', 'src'].includes(attribute.name.toLowerCase()) &&
-        /^javascript:/i.test(attribute.value.trim())
-      ) {
-        node.removeAttribute(attribute.name);
-      }
-    });
-  });
-  return documentNode.body.innerHTML;
-}
-
 export default function RagChatPanel({
   editor,
   title,
@@ -141,6 +143,7 @@ export default function RagChatPanel({
   onClose,
   onRequireLogin,
 }: RagChatPanelProps) {
+  const navigate = useNavigate();
   const user = useSelector((state: RootState) => state.user as UserState);
   const [isNarrow, setIsNarrow] = useState(() => window.innerWidth < 768);
   const [turns, setTurns] = useState<ConversationTurn[]>([]);
@@ -196,6 +199,7 @@ export default function RagChatPanel({
         status: 'retrieving',
         sourcesExpanded: true,
         hasEvidence: false,
+        canInsert: false,
       },
     ]);
     setQuery('');
@@ -214,25 +218,26 @@ export default function RagChatPanel({
             cursor_after: editorContext.after,
             selected_text: editorContext.selectedText,
           },
-          ...(domain === 'current_document'
-            ? {
-                current_document: {
-                  title: title || '当前打开文档',
-                  content: editorContext.content,
-                },
-              }
-            : {}),
+          current_document: {
+            title: title || '当前打开文档',
+            content: editorContext.content,
+          },
         },
         {
           onToolCall: (toolCall) => updateTurn(turnId, { toolCall }),
-          onMeta: (meta) =>
-            updateTurn(turnId, {
+          onMeta: (meta) => {
+            const patch: Partial<ConversationTurn> = {
               toolCall: meta.tool_call,
               trace: meta.retrieval_trace,
-              citations: meta.citations,
               retrievedDocumentCount: meta.retrieved_document_count,
+              hasEvidence: meta.has_evidence,
+              canInsert: meta.can_insert,
               status: 'streaming',
-            }),
+            };
+            if (meta.citations) patch.citations = meta.citations;
+            updateTurn(turnId, patch);
+          },
+          onCitations: (citations) => updateTurn(turnId, { citations }),
           onDelta: (delta) =>
             setTurns((items) =>
               items.map((turn) =>
@@ -249,9 +254,17 @@ export default function RagChatPanel({
             updateTurn(turnId, {
               status: 'done',
               hasEvidence: result.has_evidence,
+              canInsert: result.can_insert,
             }),
           onError: (errorMessage) =>
-            updateTurn(turnId, { status: 'error', error: errorMessage }),
+            updateTurn(turnId, {
+              status: 'error',
+              error: errorMessage,
+              answer: '',
+              citations: [],
+              hasEvidence: false,
+              canInsert: false,
+            }),
         },
         controller.signal,
       );
@@ -272,11 +285,15 @@ export default function RagChatPanel({
   const handleSend = () => {
     const normalized = query.trim();
     if (!normalized) return;
+    askQuestion(normalized);
+  };
+
+  const askQuestion = (question: string) => {
     if (!user.isLogin || !sessionStorage.getItem('token')) {
-      onRequireLogin(() => void submitQuestion(normalized));
+      onRequireLogin(() => void submitQuestion(question));
       return;
     }
-    void submitQuestion(normalized);
+    void submitQuestion(question);
   };
 
   const stopGenerating = () => abortRef.current?.abort();
@@ -296,35 +313,49 @@ export default function RagChatPanel({
       window.open(citation.url, '_blank', 'noopener,noreferrer');
       return;
     }
-    if (!editor || citation.source_type !== 'current_document') return;
-    const probe = citation.content.replace(/\s+/g, ' ').trim().slice(0, 36);
-    let matched = false;
-    editor.state.doc.descendants((node, position) => {
-      if (matched || !node.isText || !node.text) return;
-      const normalized = node.text.replace(/\s+/g, ' ');
-      const fragment = probe.slice(
-        0,
-        Math.min(probe.length, normalized.length),
+    if (citation.source_type !== 'current_document') {
+      const focusKey = `livedoc-citation-${Date.now()}-${citation.citation_id}`;
+      sessionStorage.setItem(
+        focusKey,
+        JSON.stringify({
+          citation_id: citation.citation_id,
+          chunk_id: citation.chunk_id,
+          source_anchor: citation.source_anchor,
+          document_version: citation.document_version,
+          snippet: citation.snippet || citation.content,
+          start_offset: citation.start_offset,
+          end_offset: citation.end_offset,
+        }),
       );
-      const localOffset = normalized.indexOf(fragment);
-      if (localOffset >= 0) {
-        const from = position + localOffset;
-        editor
-          .chain()
-          .focus()
-          .setTextSelection({ from, to: from + fragment.length })
-          .run();
-        matched = true;
-      }
+      navigate(
+        `/editor/draft?mode=knowledge&docId=${encodeURIComponent(citation.doc_id)}&focusCitation=${encodeURIComponent(focusKey)}`,
+      );
+      onClose();
+      return;
+    }
+    if (!editor) return;
+    const currentContent = getEditorContext(editor).content;
+    const range = locateCitationRange(editor, currentContent, {
+      snippet: citation.snippet || citation.content,
+      startOffset: citation.start_offset,
+      endOffset: citation.end_offset,
     });
-    if (!matched) {
+    if (range) {
+      editor
+        .chain()
+        .focus()
+        .setTextSelection(range)
+        .scrollIntoView()
+        .run();
+      message.success('已定位并高亮当前文档引用');
+    } else {
       editor.chain().focus().run();
       message.info('已返回当前文档，片段位置可能已发生变化');
     }
   };
 
   const insertAnswer = (turn: ConversationTurn) => {
-    if (!editor || !turn.hasEvidence || !turn.answer.trim()) return;
+    if (!editor || !turn.canInsert || !turn.answer.trim()) return;
     const references = turn.citations
       .map((citation) => {
         const permission = citationVisibilityLabel(citation);
@@ -332,9 +363,19 @@ export default function RagChatPanel({
         return `${citation.index}. ${citation.title}（${permission}）${link}`;
       })
       .join('\n');
-    const markdown = `${turn.answer}\n\n## 参考资料\n${references}`;
-    const html = sanitizeHtml(marked.parse(markdown) as string);
-    editor.chain().focus().insertContent(html).run();
+    const referenceNodes: Array<Record<string, unknown>> = [];
+    if (references) {
+      referenceNodes.push(
+        { type: 'heading', attrs: { level: 2 }, content: [{ type: 'text', text: '参考资料' }] },
+        ...references.split('\n').map((line) => ({ type: 'paragraph', content: [{ type: 'text', text: line }] })),
+      );
+    }
+    const chain = editor
+      .chain()
+      .focus()
+      .insertContent(turn.answer, { contentType: 'markdown' });
+    if (referenceNodes.length) chain.insertContent(referenceNodes);
+    chain.run();
     updateTurn(turn.id, { feedback: 'inserted' });
     if (turn.trace?.trace_id) {
       void submitAiFeedback(turn.trace.trace_id, 'inserted').catch(() => {
@@ -410,6 +451,19 @@ export default function RagChatPanel({
             <div className="rag-chat-panel__empty">
               <LibraryBig size={28} />
               <strong>开始一次知识库问答</strong>
+              <span>可直接选择一个问题验证检索、引用与回链</span>
+              <div className="rag-chat-panel__examples">
+                {exampleQuestions[domain].map((question) => (
+                  <button
+                    key={question}
+                    type="button"
+                    onClick={() => askQuestion(question)}
+                    disabled={isGenerating}
+                  >
+                    {question}
+                  </button>
+                ))}
+              </div>
             </div>
           )}
           {renderedTurns.map((turn) => (
@@ -505,7 +559,7 @@ export default function RagChatPanel({
                 )}
               </div>
 
-              {turn.status === 'done' && turn.hasEvidence && (
+              {turn.status === 'done' && turn.canInsert && (
                 <div className="rag-turn__answer-actions">
                   <Button
                     icon={<FilePlus2 size={15} />}

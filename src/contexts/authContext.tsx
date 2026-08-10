@@ -4,8 +4,12 @@ import { clearToken } from '@/store/modules/testSlice';
 import { setUserLogout, type UserState } from '@/store/modules/userSlice';
 import { logoutDemoUser } from '@/api/rag';
 import type React from 'react';
-import { createContext, useContext, useState } from 'react';
+import { createContext, useContext, useEffect, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
+
+function hasToken(): boolean {
+  return Boolean(sessionStorage.getItem('token'));
+}
 
 interface AuthContextType {
   isLoginModalVisible: boolean;
@@ -30,6 +34,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   const [isLoginModalVisible, setIsLoginModalVisible] =
     useState<boolean>(false);
   const [authCallback, setAuthCallback] = useState<(() => void) | null>(null);
+
+  useEffect(() => {
+    const handleUnauthorized = () => {
+      sessionStorage.removeItem('token');
+      dispatch(setUserLogout());
+      dispatch(clearToken());
+      setIsLoginModalVisible(true);
+    };
+    window.addEventListener('livedoc:unauthorized', handleUnauthorized);
+    return () => window.removeEventListener('livedoc:unauthorized', handleUnauthorized);
+  }, [dispatch]);
 
   const showLoginModal = () => {
     // 登录弹窗显示
@@ -57,13 +72,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     // setIsLoggedIn(false);
     // 更新 Redux 状态
     void logoutDemoUser().catch(() => undefined);
+    sessionStorage.removeItem('token');
     dispatch(setUserLogout());
     dispatch(clearToken());
   };
 
+  const isLoggedIn = user.isLogin && hasToken();
+
   // 需要登录验证的操作包装函数
   const requireAuth = (callback: () => void) => {
-    if (user.isLogin) {
+    if (isLoggedIn) {
       callback();
     } else {
       setAuthCallback(() => callback);
@@ -75,7 +93,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     <AuthContext.Provider
       value={{
         isLoginModalVisible,
-        isLoggedIn: user.isLogin,
+        isLoggedIn,
         showLoginModal,
         hideLoginModal,
         login,

@@ -178,6 +178,55 @@
   }
 }
 
+.knowledge-import-status {
+  margin-bottom: 14px;
+  padding: 12px 14px;
+  border: 1px solid #cfe0dd;
+  border-radius: 8px;
+  background: #f8fbfa;
+}
+
+.knowledge-import-status__heading,
+.knowledge-import-status__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.knowledge-import-status__heading {
+  margin-bottom: 8px;
+
+  > div {
+    min-width: 0;
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+  }
+
+  strong {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .ant-tag {
+    margin: 0;
+  }
+}
+
+.knowledge-import-status__footer {
+  margin-top: 5px;
+
+  > .ant-typography {
+    min-width: 0;
+    margin: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
 .knowledge-folder-tabs {
   min-width: 0;
   display: flex;
@@ -299,6 +348,12 @@
   }
 
   .knowledge-header {
+    flex-direction: column;
+  }
+
+  .knowledge-import-status__heading,
+  .knowledge-import-status__footer {
+    align-items: flex-start;
     flex-direction: column;
   }
 

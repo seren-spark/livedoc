@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 export const ragBaseURL =
-  import.meta.env.VITE_RAG_API_BASE_URL || 'http://127.0.0.1:8000';
+  import.meta.env.VITE_RAG_API_BASE_URL || 'http://127.0.0.1:8001';
 
 const ragClient = axios.create({
   baseURL: ragBaseURL,
@@ -18,6 +18,17 @@ ragClient.interceptors.request.use((config) => {
   }
   return config;
 });
+
+ragClient.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error?.response?.status === 401) {
+      sessionStorage.removeItem('token');
+      window.dispatchEvent(new Event('livedoc:unauthorized'));
+    }
+    return Promise.reject(error);
+  },
+);
 
 export type RetrievalDomain =
   | 'public'
@@ -51,7 +62,74 @@ export type DocumentCreatePayload = Omit<
 > & {
   doc_id?: string;
   index_now?: boolean;
+  editor_content?: TipTapDocument | null;
+  source_import_id?: string | null;
+  asset_ids?: string[];
 };
+
+export type TipTapDocument = {
+  type: 'doc';
+  content?: Array<Record<string, unknown>>;
+};
+
+export interface DocumentAsset {
+  asset_id: string;
+  space_id: string;
+  owner_id: string;
+  import_id?: string | null;
+  doc_id?: string | null;
+  kind: 'source' | 'image' | 'editor_image';
+  filename: string;
+  mime_type: string;
+  byte_size: number;
+  sha256: string;
+  content_url: string;
+  page_number?: number | null;
+  ordinal?: number | null;
+  width?: number | null;
+  height?: number | null;
+  ocr_text: string;
+  description: string;
+  analysis_status: 'pending' | 'ready' | 'skipped' | 'failed';
+  analysis_error?: string | null;
+  created_at: string;
+}
+
+export interface DocumentImportRecord {
+  import_id: string;
+  space_id: string;
+  owner_id: string;
+  visibility: 'private' | 'team' | 'public';
+  team_id?: string | null;
+  tags: string[];
+  folder?: string | null;
+  title: string;
+  filename: string;
+  mime_type: string;
+  file_size: number;
+  sha256: string;
+  source_asset_id: string;
+  status:
+    | 'uploaded'
+    | 'queued'
+    | 'parsing'
+    | 'review_ready'
+    | 'confirmed'
+    | 'retry_wait'
+    | 'failed'
+    | 'canceled';
+  progress: number;
+  stage: string;
+  parsed_content: string;
+  editor_content?: TipTapDocument | null;
+  parser_version?: string | null;
+  error?: string | null;
+  document_id?: string | null;
+  latest_job_id?: string | null;
+  assets: DocumentAsset[];
+  created_at: string;
+  updated_at: string;
+}
 
 export type DocumentRecord = Required<
   Pick<DocumentIndexPayload, 'doc_id' | 'space_id' | 'title' | 'content'>
@@ -62,6 +140,9 @@ export type DocumentRecord = Required<
   team_id?: string | null;
   owner_id?: string | null;
   url?: string | null;
+  editor_content?: TipTapDocument | null;
+  source_import_id?: string | null;
+  assets: DocumentAsset[];
   document_version: number;
   index_status: 'pending' | 'queued' | 'indexing' | 'ready' | 'failed';
   active_index_version?: number | null;
@@ -74,14 +155,18 @@ export type DocumentRecord = Required<
 };
 
 export interface Citation {
+  citation_id: string;
   index: number;
   doc_id: string;
   chunk_id: string;
   title: string;
   content: string;
+  snippet: string;
+  source_anchor: string;
   source_type: string;
   visibility: string;
   score: number;
+  retrieval_score: number;
   dense_score?: number | null;
   keyword_score?: number | null;
   rerank_score?: number | null;
@@ -91,8 +176,11 @@ export interface Citation {
   space_id: string;
   team_id?: string | null;
   document_version: number;
+  document_updated_at?: string | null;
   start_offset?: number | null;
   end_offset?: number | null;
+  asset_id?: string | null;
+  page_number?: number | null;
 }
 
 export interface KnowledgeSearchPayload {
@@ -148,22 +236,23 @@ export interface DemoUser {
 }
 
 export interface AiWriteMeta {
+  request_id: string;
+  trace_id: string;
   intent: string;
+  has_evidence: boolean;
+  can_insert: boolean;
   tool_call: AgentToolCall;
   retrieval_trace: RetrievalTrace;
-  citations: Citation[];
+  citations?: Citation[];
   retrieved_document_count: number;
 }
 
 export interface AgentToolCall {
   name:
-    | 'knowledge_search'
-    | 'summarize_document'
+    | 'search_knowledge_base'
+    | 'summarize_current_document'
     | 'continue_paragraph'
-    | 'format_selection'
-    | 'fill_in_middle'
-    | 'correct_text'
-    | 'expand_text';
+    | 'optimize_format';
   arguments: Record<string, unknown>;
   reason: string;
   source: 'llm_function_call' | 'rule_fallback' | 'request_intent';
@@ -196,6 +285,8 @@ export interface AiWriteResponse {
   trace: RetrievalTrace;
   answer: string;
   citations: Citation[];
+  has_evidence: boolean;
+  can_insert: boolean;
 }
 
 export interface EditorAssistPayload {
@@ -257,10 +348,13 @@ export interface AiWriteStreamHandlers {
     duration_ms: number;
   }) => void;
   onMeta: (meta: AiWriteMeta) => void;
+  onCitations?: (citations: Citation[]) => void;
   onDelta: (delta: string) => void;
   onDone: (result: {
     status: string;
     has_evidence: boolean;
+    can_insert: boolean;
+    request_id: string;
     trace_id: string;
   }) => void;
   onError: (message: string) => void;
@@ -284,6 +378,12 @@ export async function createKnowledgeDocument(payload: DocumentCreatePayload) {
 export async function listKnowledgeDocuments(params?: {
   page?: number;
   page_size?: number;
+  q?: string;
+  visibility?: 'private' | 'team' | 'public';
+  source_type?: DocumentRecord['source_type'];
+  tag?: string;
+  team_id?: string;
+  index_status?: DocumentRecord['index_status'];
 }) {
   const { data } = await ragClient.get('/documents', { params });
   return data as {
@@ -301,7 +401,7 @@ export async function getKnowledgeDocument(docId: string) {
 
 export async function updateKnowledgeDocument(
   docId: string,
-  payload: Partial<DocumentCreatePayload>,
+  payload: Partial<DocumentCreatePayload> & { expected_version?: number },
 ) {
   const { data } = await ragClient.patch(`/documents/${docId}`, payload);
   return data as DocumentRecord;
@@ -315,6 +415,103 @@ export async function deleteKnowledgeDocument(docId: string) {
 export async function reindexKnowledgeDocument(docId: string) {
   const { data } = await ragClient.post(`/documents/${docId}/reindex`);
   return data as IndexJob;
+}
+
+async function parseFetchError(response: Response) {
+  const payload = await response.json().catch(() => null);
+  return new Error(payload?.detail || `请求失败（${response.status}）`);
+}
+
+function authHeaders() {
+  const token = sessionStorage.getItem('token');
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
+export async function uploadDocumentImport(
+  file: File,
+  metadata: {
+    visibility: 'private' | 'team' | 'public';
+    team_id?: string;
+    tags?: string[];
+    folder?: string;
+  },
+) {
+  const body = new FormData();
+  body.append('file', file);
+  body.append('visibility', metadata.visibility);
+  if (metadata.team_id) body.append('team_id', metadata.team_id);
+  body.append('tags', JSON.stringify(metadata.tags || []));
+  if (metadata.folder) body.append('folder', metadata.folder);
+  const response = await fetch(`${ragBaseURL}/document-imports`, {
+    method: 'POST',
+    headers: authHeaders(),
+    body,
+  });
+  if (!response.ok) throw await parseFetchError(response);
+  return (await response.json()) as DocumentImportRecord;
+}
+
+export async function getDocumentImport(importId: string) {
+  const { data } = await ragClient.get(`/document-imports/${importId}`);
+  return data as DocumentImportRecord;
+}
+
+export async function updateDocumentImport(
+  importId: string,
+  payload: {
+    title?: string;
+    content?: string;
+    editor_content?: TipTapDocument;
+    asset_ids?: string[];
+  },
+) {
+  const { data } = await ragClient.patch(
+    `/document-imports/${importId}`,
+    payload,
+  );
+  return data as DocumentImportRecord;
+}
+
+export async function retryDocumentImport(importId: string) {
+  const { data } = await ragClient.post(`/document-imports/${importId}/retry`);
+  return data as DocumentImportRecord;
+}
+
+export async function confirmDocumentImport(importId: string) {
+  const { data } = await ragClient.post(
+    `/document-imports/${importId}/confirm`,
+  );
+  return data as { document: DocumentRecord; index_job: IndexJob };
+}
+
+export async function uploadDocumentAsset(
+  file: File,
+  parent: { import_id?: string; doc_id?: string },
+) {
+  const body = new FormData();
+  body.append('file', file);
+  if (parent.import_id) body.append('import_id', parent.import_id);
+  if (parent.doc_id) body.append('doc_id', parent.doc_id);
+  const response = await fetch(`${ragBaseURL}/assets`, {
+    method: 'POST',
+    headers: authHeaders(),
+    body,
+  });
+  if (!response.ok) throw await parseFetchError(response);
+  return (await response.json()) as DocumentAsset;
+}
+
+export async function fetchDocumentAssetBlob(assetId: string) {
+  const response = await fetch(`${ragBaseURL}/assets/${assetId}/content`, {
+    headers: authHeaders(),
+  });
+  if (!response.ok) throw await parseFetchError(response);
+  return response.blob();
+}
+
+export async function retryDocumentAsset(assetId: string) {
+  const { data } = await ragClient.post(`/assets/${assetId}/retry`);
+  return data as DocumentAsset;
 }
 
 export async function searchKnowledge(payload: KnowledgeSearchPayload) {
@@ -369,15 +566,26 @@ export async function streamAiWrite(
   signal?: AbortSignal,
 ) {
   const token = sessionStorage.getItem('token');
-  const response = await fetch(`${ragBaseURL}/ai/write`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
-    body: JSON.stringify({ ...payload, stream: true }),
-    signal,
-  });
+  let response: Response;
+  try {
+    response = await fetch(`${ragBaseURL}/ai/write`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({ ...payload, stream: true }),
+      signal,
+    });
+  } catch (error) {
+    if (signal?.aborted || (error as DOMException)?.name === 'AbortError') {
+      throw error;
+    }
+    throw new Error(
+      `无法连接知识库服务（${ragBaseURL}）。请确认后端已启动，并检查 http://127.0.0.1:8001/health/live。`,
+      { cause: error },
+    );
+  }
 
   if (!response.ok) {
     const detail = await response.json().catch(() => null);
@@ -402,7 +610,7 @@ export async function streamAiWrite(
 
     const raw = dataLines.join('\n');
     const data = JSON.parse(raw);
-    if (eventName === 'tool_call') {
+    if (eventName === 'tool_start' || eventName === 'tool_call') {
       handlers.onToolCall?.(data as AgentToolCall);
     }
     if (eventName === 'tool_result') {
@@ -417,10 +625,13 @@ export async function streamAiWrite(
       );
     }
     if (eventName === 'meta') handlers.onMeta(data as AiWriteMeta);
+    if (eventName === 'citations') {
+      handlers.onCitations?.((data?.citations ?? []) as Citation[]);
+    }
     if (eventName === 'delta') handlers.onDelta(String(data));
     if (eventName === 'done') {
       handlers.onDone(
-        data as { status: string; has_evidence: boolean; trace_id: string },
+        data as { status: string; has_evidence: boolean; can_insert: boolean; request_id: string; trace_id: string },
       );
     }
     if (eventName === 'error') {
@@ -453,7 +664,16 @@ export async function logoutDemoUser() {
 
 export async function seedRagDemoData() {
   const { data } = await ragClient.post('/dev/seed');
-  return data;
+  return data as {
+    status: 'seeded';
+    documents: Array<{
+      doc_id: string;
+      title: string;
+      action: 'created' | 'updated' | 'unchanged';
+      index_status: DocumentRecord['index_status'];
+      job_id: string | null;
+    }>;
+  };
 }
 
 export async function submitAiFeedback(

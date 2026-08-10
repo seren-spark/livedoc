@@ -26,6 +26,7 @@ import {
 import marked from '@/utils/marked';
 import RagChatPanel from '@/components/Knowledge/RagChatPanel';
 import { useAuth } from '@/contexts/authContext';
+import { useKnowledgeDocumentSession } from '@/hooks/useKnowledgeDocumentSession';
 
 const AISuggestionPreview = React.lazy(
   () => import('@/components/AISuggestionPreview'),
@@ -37,7 +38,8 @@ const TiptapEditor = () => {
   const { requireAuth } = useAuth();
   const items = useSelector((state: any) => state.toc.tocItems);
   const [collapsed, setCollapsed] = useState(false);
-  const [title, setTitle] = useState('');
+  const knowledgeSession = useKnowledgeDocumentSession(editor);
+  const { title, setTitle } = knowledgeSession;
   const [ragChatOpen, setRagChatOpen] = useState(false);
   const [isLinkBubbleVisible, setIsLinkBubbleVisible] = useState(false);
   const [showPerformanceMonitor, setShowPerformanceMonitor] = useState(false);
@@ -177,7 +179,7 @@ const TiptapEditor = () => {
               <Input
                 className="title-input"
                 variant="borderless"
-                maxLength={20}
+                maxLength={knowledgeSession.isKnowledgeMode ? 120 : 20}
                 placeholder=" 输入文章标题"
                 value={title}
                 onChange={(event) => setTitle(event.target.value)}
@@ -282,11 +284,48 @@ const TiptapEditor = () => {
               </Button>
             </Dropdown>
 
-            <Button type="text">保存成功</Button>
-            <Button type="primary" ghost>
-              草稿箱
+            <Button
+              type="text"
+              loading={knowledgeSession.saveState === 'saving'}
+              danger={knowledgeSession.saveState === 'error'}
+            >
+              {knowledgeSession.statusText}
             </Button>
-            <Button type="primary">发布</Button>
+            <Button
+              type="primary"
+              ghost
+              onClick={() => {
+                if (!knowledgeSession.isKnowledgeMode) return;
+                if (knowledgeSession.importRecord) {
+                  void knowledgeSession.saveDraft();
+                } else {
+                  knowledgeSession.leave();
+                }
+              }}
+            >
+              {knowledgeSession.isKnowledgeMode
+                ? knowledgeSession.importRecord
+                  ? '保存预览'
+                  : '返回知识库'
+                : '草稿箱'}
+            </Button>
+            <Button
+              type="primary"
+              onClick={() => {
+                if (knowledgeSession.isKnowledgeMode) {
+                  void knowledgeSession.saveToKnowledge();
+                }
+              }}
+              loading={knowledgeSession.saveState === 'saving'}
+            >
+              {knowledgeSession.isKnowledgeMode
+                ? knowledgeSession.importRecord
+                  ? '确认入库'
+                  : knowledgeSession.documentRecord
+                    ? '保存并索引'
+                    : '保存到知识库'
+                : '发布'}
+            </Button>
             <Avatar
               size="small"
               src="https://api.dicebear.com/7.x/avataaars/svg?seed=1"

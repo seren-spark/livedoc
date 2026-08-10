@@ -1,13 +1,12 @@
 import type { ReactNode } from 'react';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Badge,
   Button,
-  Drawer,
   Empty,
-  Form,
   Input,
   Modal,
+  Progress,
   Select,
   Space,
   Table,
@@ -19,6 +18,7 @@ import {
 import type { ColumnsType } from 'antd/es/table';
 import {
   DeleteOutlined,
+  DatabaseOutlined,
   EditOutlined,
   FileAddOutlined,
   FolderOpenOutlined,
@@ -31,15 +31,19 @@ import {
   RetweetOutlined,
   SearchOutlined,
   TeamOutlined,
+  UploadOutlined,
 } from '@ant-design/icons';
+import { useNavigate } from 'react-router-dom';
 import {
-  createKnowledgeDocument,
   deleteKnowledgeDocument,
+  getDocumentImport,
   getRagMetrics,
   listKnowledgeDocuments,
   reindexKnowledgeDocument,
-  updateKnowledgeDocument,
-  type DocumentCreatePayload,
+  retryDocumentImport,
+  seedRagDemoData,
+  uploadDocumentImport,
+  type DocumentImportRecord,
   type DocumentRecord,
   type RagMetrics,
 } from '@/api/rag';
@@ -53,7 +57,6 @@ type SpaceKey =
   | 'public'
   | 'recent'
   | 'favorite'
-  | 'trash'
   | `team:${string}`;
 
 const statusColor: Record<DocumentRecord['index_status'], string> = {
@@ -93,6 +96,18 @@ const sourceTypeLabel: Record<DocumentRecord['source_type'], string> = {
 };
 
 const systemFolders = new Set(['全部文档', '未分类']);
+const importStorageKey = 'livedoc:lastDocumentImportId';
+
+const importStatusLabel: Record<DocumentImportRecord['status'], string> = {
+  uploaded: '已上传',
+  queued: '等待解析',
+  parsing: '正在解析',
+  review_ready: '可预览编辑',
+  confirmed: '已存入知识库',
+  retry_wait: '等待重试',
+  failed: '解析失败',
+  canceled: '已取消',
+};
 
 function formatTime(value?: string | null) {
   if (!value) return '-';
@@ -113,7 +128,6 @@ function matchesSpace(record: DocumentRecord, spaceKey: SpaceKey) {
       ['收藏', 'favorite', 'starred'].includes(tag),
     );
   }
-  if (spaceKey === 'trash') return false;
   if (spaceKey.startsWith('team:')) {
     return record.visibility === 'team' && record.team_id === spaceKey.slice(5);
   }
@@ -125,18 +139,22 @@ function spaceTitle(spaceKey: SpaceKey) {
   if (spaceKey === 'public') return '公共知识库';
   if (spaceKey === 'recent') return '最近文档';
   if (spaceKey === 'favorite') return '收藏文档';
-  if (spaceKey === 'trash') return '回收站';
   return spaceKey.slice(5);
 }
 
 export default function KnowledgePage() {
-  const [form] = Form.useForm<DocumentCreatePayload>();
+  const navigate = useNavigate();
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const { isLoggedIn, showLoginModal } = useAuth();
   const [docs, setDocs] = useState<DocumentRecord[]>([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
   const [loading, setLoading] = useState(false);
-  const [drawerOpen, setDrawerOpen] = useState(false);
-  const [editing, setEditing] = useState<DocumentRecord | null>(null);
-  const [saving, setSaving] = useState(false);
+  const [activeImport, setActiveImport] =
+    useState<DocumentImportRecord | null>(null);
+  const [importing, setImporting] = useState(false);
+  const [seeding, setSeeding] = useState(false);
   const [metrics, setMetrics] = useState<RagMetrics | null>(null);
   const [metricsWindow, setMetricsWindow] = useState<'24h' | '7d' | '30d'>(
     '24h',
@@ -151,20 +169,42 @@ export default function KnowledgePage() {
     DocumentRecord['visibility'] | 'all'
   >('all');
 
-  const loadDocs = async () => {
+  const loadDocs = async (options: { background?: boolean } = {}) => {
+    const background = options.background === true;
     if (!isLoggedIn) {
       setDocs([]);
       return;
     }
-    setLoading(true);
+    if (!background) setLoading(true);
     try {
-      const data = await listKnowledgeDocuments({ page: 1, page_size: 200 });
+      const isTeamSpace = selectedSpace.startsWith('team:');
+      const data = await listKnowledgeDocuments({
+        page,
+        page_size: pageSize,
+        q: keyword.trim() || undefined,
+        visibility:
+          visibilityFilter !== 'all'
+            ? visibilityFilter
+            : selectedSpace === 'private'
+              ? 'private'
+              : selectedSpace === 'public'
+                ? 'public'
+                : isTeamSpace
+                  ? 'team'
+                  : undefined,
+        team_id: isTeamSpace ? selectedSpace.slice(5) : undefined,
+        tag: selectedFolder !== '全部文档' ? selectedFolder : undefined,
+        index_status: statusFilter !== 'all' ? statusFilter : undefined,
+      });
       setDocs(data.items);
+      setTotal(data.total);
     } catch (error) {
       console.error(error);
-      message.error('文档列表加载失败，请确认后端服务和登录状态');
+      if (!background) {
+        message.error('文档列表加载失败，请确认后端服务和登录状态');
+      }
     } finally {
-      setLoading(false);
+      if (!background) setLoading(false);
     }
   };
 
@@ -181,28 +221,122 @@ export default function KnowledgePage() {
   };
 
   useEffect(() => {
-    void Promise.all([loadDocs(), loadMetrics()]);
+    void loadMetrics();
   }, [isLoggedIn, metricsWindow]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => void loadDocs(), 250);
+    return () => window.clearTimeout(timer);
+  }, [isLoggedIn, page, pageSize, keyword, selectedFolder, selectedSpace, statusFilter, visibilityFilter]);
+
+  useEffect(() => {
+    if (!isLoggedIn) {
+      setActiveImport(null);
+      return;
+    }
+    const importId = sessionStorage.getItem(importStorageKey);
+    if (!importId) return;
+    void getDocumentImport(importId)
+      .then(setActiveImport)
+      .catch(() => sessionStorage.removeItem(importStorageKey));
+  }, [isLoggedIn]);
+
+  useEffect(() => {
+    if (
+      !activeImport ||
+      !['uploaded', 'queued', 'parsing', 'retry_wait'].includes(
+        activeImport.status,
+      )
+    ) {
+      return;
+    }
+    let cancelled = false;
+    let timer = 0;
+    let attempt = 0;
+    const poll = async () => {
+      if (cancelled) return;
+      if (document.visibilityState === 'hidden') {
+        timer = window.setTimeout(poll, 5000);
+        return;
+      }
+      try {
+        const next = await getDocumentImport(activeImport.import_id);
+        if (cancelled) return;
+        setActiveImport(next);
+        attempt += 1;
+        if (next.status === 'review_ready') {
+          message.success('文档解析完成，可以进入原编辑器预览和修改');
+          return;
+        }
+      } catch (error) {
+        console.error(error);
+        attempt += 1;
+      }
+      timer = window.setTimeout(poll, Math.min(8000, 1500 * 1.5 ** attempt));
+    };
+    timer = window.setTimeout(poll, 1200);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [activeImport?.import_id, activeImport?.status]);
+
+  const hasActiveIndexJobs = docs.some((doc) =>
+    ['queued', 'indexing'].includes(doc.index_status),
+  );
 
   useEffect(() => {
     if (
       !isLoggedIn ||
-      !docs.some((doc) => ['queued', 'indexing'].includes(doc.index_status))
+      !hasActiveIndexJobs
     ) {
       return;
     }
-    const timer = window.setInterval(() => {
-      void Promise.all([loadDocs(), loadMetrics()]);
-    }, 2000);
-    return () => window.clearInterval(timer);
-  }, [docs, isLoggedIn, metricsWindow]);
+    let cancelled = false;
+    let timer = 0;
+    let attempt = 0;
+    const poll = async () => {
+      if (cancelled) return;
+      if (document.visibilityState === 'hidden') {
+        timer = window.setTimeout(poll, 5000);
+        return;
+      }
+      await Promise.all([
+        loadDocs({ background: true }),
+        loadMetrics(),
+      ]).catch(console.error);
+      attempt += 1;
+      timer = window.setTimeout(poll, Math.min(10_000, 2000 * 1.4 ** attempt));
+    };
+    timer = window.setTimeout(poll, 2000);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [
+    hasActiveIndexJobs,
+    isLoggedIn,
+    metricsWindow,
+    page,
+    pageSize,
+    keyword,
+    selectedFolder,
+    selectedSpace,
+    statusFilter,
+    visibilityFilter,
+  ]);
 
   useEffect(() => {
     setSelectedFolder('全部文档');
     setVisibilityFilter('all');
     setStatusFilter('all');
     setKeyword('');
+    setPage(1);
   }, [selectedSpace]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [keyword, selectedFolder, statusFilter, visibilityFilter]);
 
   const teams = useMemo(() => {
     const ids = Array.from(
@@ -266,66 +400,100 @@ export default function KnowledgePage() {
     [docs, tableDocs],
   );
 
-  const openCreate = () => {
+  const currentTarget = () => {
     const isTeamSpace = selectedSpace.startsWith('team:');
     const folderTag = !systemFolders.has(selectedFolder)
       ? [selectedFolder]
       : [];
-    setEditing(null);
-    form.setFieldsValue({
-      title: '',
-      content: '',
-      visibility: isTeamSpace
+    const visibility = isTeamSpace
         ? 'team'
         : selectedSpace === 'public'
           ? 'public'
-          : 'private',
-      source_type: isTeamSpace
-        ? 'team_doc'
-        : selectedSpace === 'public'
-          ? 'public_article'
-          : 'note',
+          : 'private';
+    return {
+      visibility: visibility as 'private' | 'team' | 'public',
       team_id: isTeamSpace ? selectedSpace.slice(5) : '',
       tags: folderTag,
-      url: '',
-      index_now: true,
+      folder: folderTag[0] || '',
+    };
+  };
+
+  const openCreate = () => {
+    const target = currentTarget();
+    const params = new URLSearchParams({
+      mode: 'knowledge',
+      space: selectedSpace,
+      visibility: target.visibility,
     });
-    setDrawerOpen(true);
+    if (target.team_id) params.set('team', target.team_id);
+    if (target.folder) params.set('folder', target.folder);
+    navigate(`/editor/draft?${params.toString()}`);
   };
 
   const openEdit = (record: DocumentRecord) => {
-    setEditing(record);
-    form.setFieldsValue({
-      title: record.title,
-      content: record.content,
-      visibility: record.visibility,
-      source_type: record.source_type,
-      team_id: record.team_id || '',
-      tags: record.tags,
-      url: record.url || '',
-    });
-    setDrawerOpen(true);
+    navigate(`/editor/draft?mode=knowledge&docId=${record.doc_id}`);
   };
 
-  const submit = async () => {
-    const values = await form.validateFields();
-    setSaving(true);
+  const importFile = async (file: File) => {
+    const target = currentTarget();
+    setImporting(true);
     try {
-      if (editing) {
-        await updateKnowledgeDocument(editing.doc_id, values);
-        message.success('文档已更新');
-      } else {
-        await createKnowledgeDocument(values);
-        message.success('文档已创建并发起索引');
-      }
-      setDrawerOpen(false);
-      await loadDocs();
+      const record = await uploadDocumentImport(file, target);
+      sessionStorage.setItem(importStorageKey, record.import_id);
+      setActiveImport(record);
+      message.success('上传成功，正在后台解析');
     } catch (error) {
       console.error(error);
-      message.error('保存失败，请检查文档内容、权限或后端连接');
+      message.error('导入失败，请确认文件为 50MB 内的 PDF 或 DOCX');
     } finally {
-      setSaving(false);
+      setImporting(false);
     }
+  };
+
+  const retryImport = async () => {
+    if (!activeImport) return;
+    setImporting(true);
+    try {
+      const next = await retryDocumentImport(activeImport.import_id);
+      setActiveImport(next);
+      message.success('已重新加入解析队列');
+    } catch (error) {
+      console.error(error);
+      message.error('重试失败');
+    } finally {
+      setImporting(false);
+    }
+  };
+
+  const seedDemoData = () => {
+    Modal.confirm({
+      title: '生成真实 RAG 演示数据',
+      content:
+        '将为当前账号创建或还原公开、个人和所属团队的演示文档，并进入真实 BGE + Qdrant 索引队列。不会创建其他用户或其他团队的资料。',
+      okText: '生成并建立索引',
+      cancelText: '取消',
+      onOk: async () => {
+        setSeeding(true);
+        try {
+          const result = await seedRagDemoData();
+          const queued = result.documents.filter((item) => item.job_id).length;
+          message.success(
+            queued > 0
+              ? `已准备 ${result.documents.length} 篇演示文档，${queued} 篇进入索引队列`
+              : `${result.documents.length} 篇演示文档均已就绪，无需重复索引`,
+          );
+          setPage(1);
+          setSelectedSpace('private');
+          await loadDocs();
+        } catch (error) {
+          console.error(error);
+          message.error('生成演示数据失败，请检查 API 与索引 worker 是否已启动');
+          throw error;
+        } finally {
+          setSeeding(false);
+        }
+      },
+    });
   };
 
   const remove = (record: DocumentRecord) => {
@@ -469,6 +637,7 @@ export default function KnowledgePage() {
     count: number,
   ) => (
     <button
+      key={key}
       type="button"
       className={
         selectedSpace === key
@@ -545,7 +714,6 @@ export default function KnowledgePage() {
             '收藏文档',
             counts.favorite,
           )}
-          {renderNavItem('trash', <DeleteOutlined />, '回收站', 0)}
         </div>
       </aside>
 
@@ -569,6 +737,33 @@ export default function KnowledgePage() {
               刷新
             </Button>
             <Button
+              icon={<DatabaseOutlined />}
+              onClick={seedDemoData}
+              disabled={!isLoggedIn}
+              loading={seeding}
+            >
+              演示数据
+            </Button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+              hidden
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                event.target.value = '';
+                if (file) void importFile(file);
+              }}
+            />
+            <Button
+              icon={<UploadOutlined />}
+              onClick={() => fileInputRef.current?.click()}
+              disabled={!isLoggedIn}
+              loading={importing}
+            >
+              导入 PDF / Word
+            </Button>
+            <Button
               type="primary"
               icon={<FileAddOutlined />}
               onClick={openCreate}
@@ -579,23 +774,94 @@ export default function KnowledgePage() {
           </Space>
         </header>
 
-        {isLoggedIn && metrics && (
-            <section className="knowledge-observability" aria-label="RAG 运行指标">
+        {isLoggedIn && activeImport && (
+          <section className="knowledge-import-status" aria-live="polite">
+            <div className="knowledge-import-status__heading">
               <div>
-                <Text type="secondary">
-                  <Select
+                <Text type="secondary">最近一次导入</Text>
+                <strong>{activeImport.filename}</strong>
+              </div>
+              <Tag
+                color={
+                  activeImport.status === 'review_ready'
+                    ? 'success'
+                    : activeImport.status === 'failed'
+                      ? 'error'
+                      : activeImport.status === 'confirmed'
+                        ? 'blue'
+                        : 'processing'
+                }
+              >
+                {importStatusLabel[activeImport.status]}
+              </Tag>
+            </div>
+            <Progress
+              percent={Math.round(activeImport.progress)}
+              status={activeImport.status === 'failed' ? 'exception' : 'active'}
+              size="small"
+              showInfo={false}
+            />
+            <div className="knowledge-import-status__footer">
+              <Text type={activeImport.error ? 'danger' : 'secondary'}>
+                {activeImport.error || activeImport.stage || '等待后台处理'}
+              </Text>
+              <Space>
+                {['failed', 'retry_wait'].includes(activeImport.status) && (
+                  <Button size="small" onClick={retryImport} loading={importing}>
+                    重试解析
+                  </Button>
+                )}
+                {activeImport.status === 'review_ready' && (
+                  <Button
                     size="small"
-                    value={metricsWindow}
-                    onChange={setMetricsWindow}
-                    options={[
-                      { label: '近 24 小时', value: '24h' },
-                      { label: '近 7 天', value: '7d' },
-                      { label: '近 30 天', value: '30d' },
-                    ]}
-                  />
-                </Text>
-                <strong>{metrics.search_count}</strong>
-                <span>次持久化请求 · 队列 {metrics.queue_depth}</span>
+                    type="primary"
+                    onClick={() =>
+                      navigate(
+                        `/editor/draft?mode=knowledge&importId=${activeImport.import_id}`,
+                      )
+                    }
+                  >
+                    进入原编辑器预览
+                  </Button>
+                )}
+                {activeImport.status === 'confirmed' &&
+                  activeImport.document_id && (
+                    <Button
+                      size="small"
+                      onClick={() =>
+                        navigate(
+                          `/editor/draft?mode=knowledge&docId=${activeImport.document_id}`,
+                        )
+                      }
+                    >
+                      打开知识文档
+                    </Button>
+                  )}
+              </Space>
+            </div>
+          </section>
+        )}
+
+        {isLoggedIn && metrics && (
+          <section
+            className="knowledge-observability"
+            aria-label="RAG 运行指标"
+          >
+            <div>
+              <Text type="secondary">
+                <Select
+                  size="small"
+                  value={metricsWindow}
+                  onChange={setMetricsWindow}
+                  options={[
+                    { label: '近 24 小时', value: '24h' },
+                    { label: '近 7 天', value: '7d' },
+                    { label: '近 30 天', value: '30d' },
+                  ]}
+                />
+              </Text>
+              <strong>{metrics.search_count}</strong>
+              <span>次持久化请求 · 队列 {metrics.queue_depth}</span>
             </div>
             <div>
               <Text type="secondary">检索 P95</Text>
@@ -611,7 +877,8 @@ export default function KnowledgePage() {
               <Text type="secondary">内容采纳率</Text>
               <strong>{(metrics.adoption_rate * 100).toFixed(1)}%</strong>
               <span>
-                {metrics.inserted_count}/{metrics.evidence_completion_count} 次插入
+                {metrics.inserted_count}/{metrics.evidence_completion_count}{' '}
+                次插入
               </span>
             </div>
           </section>
@@ -686,94 +953,22 @@ export default function KnowledgePage() {
               columns={columns}
               dataSource={tableDocs}
               pagination={{
-                pageSize: 10,
+                current: page,
+                pageSize,
+                total,
                 showSizeChanger: true,
                 showTotal: (total) => `共 ${total} 篇文档`,
+                onChange: (nextPage, nextPageSize) => {
+                  setPage(nextPageSize !== pageSize ? 1 : nextPage);
+                  setPageSize(nextPageSize);
+                },
               }}
-              locale={{
-                emptyText:
-                  selectedSpace === 'trash'
-                    ? '回收站暂未接入后端'
-                    : '当前目录暂无文档',
-              }}
+              locale={{ emptyText: '当前目录暂无文档' }}
             />
           )}
         </section>
       </main>
 
-      <Drawer
-        width={520}
-        open={drawerOpen}
-        title={editing ? '编辑知识文档' : '新建知识文档'}
-        onClose={() => setDrawerOpen(false)}
-        extra={
-          <Button type="primary" loading={saving} onClick={submit}>
-            保存
-          </Button>
-        }
-      >
-        <Form form={form} layout="vertical">
-          <Form.Item
-            name="title"
-            label="标题"
-            rules={[{ required: true, message: '请输入标题' }]}
-          >
-            <Input placeholder="例如：LiveDoc RAG 架构设计" />
-          </Form.Item>
-          <Form.Item
-            name="content"
-            label="正文"
-            rules={[{ required: true, message: '请输入正文内容' }]}
-          >
-            <Input.TextArea
-              rows={10}
-              placeholder="粘贴文章、方案、团队资料或产品文档内容"
-            />
-          </Form.Item>
-          <Form.Item name="visibility" label="权限">
-            <Select
-              options={[
-                { label: '个人私有 private', value: 'private' },
-                { label: '团队共享 team', value: 'team' },
-                { label: '公开 public', value: 'public' },
-              ]}
-            />
-          </Form.Item>
-          <Form.Item name="team_id" label="团队 ID">
-            <Input placeholder="团队文档填写，例如 team_alpha" />
-          </Form.Item>
-          <Form.Item name="source_type" label="来源类型">
-            <Select
-              options={[
-                { label: '文章 article', value: 'article' },
-                { label: '草稿 draft', value: 'draft' },
-                { label: '笔记 note', value: 'note' },
-                { label: '团队文档 team_doc', value: 'team_doc' },
-                { label: '公开文章 public_article', value: 'public_article' },
-              ]}
-            />
-          </Form.Item>
-          <Form.Item name="tags" label="知识库目录 / 标签">
-            <Select
-              mode="tags"
-              placeholder="输入目录或标签后回车，例如 项目资料"
-            />
-          </Form.Item>
-          <Form.Item name="url" label="来源 URL">
-            <Input placeholder="可选，原文链接" />
-          </Form.Item>
-          {!editing && (
-            <Form.Item name="index_now" label="创建后立即索引">
-              <Select
-                options={[
-                  { label: '立即索引', value: true },
-                  { label: '仅保存为待索引', value: false },
-                ]}
-              />
-            </Form.Item>
-          )}
-        </Form>
-      </Drawer>
     </div>
   );
 }

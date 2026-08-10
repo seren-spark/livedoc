@@ -75,7 +75,7 @@ function CitationItem({
   const [expanded, setExpanded] = useState(false);
   const isCurrentDocument = citation.source_type === 'current_document';
   const canOpen = Boolean(
-    onOpenOriginal && (citation.url || isCurrentDocument),
+    onOpenOriginal && (citation.url || isCurrentDocument || citation.doc_id),
   );
 
   return (
@@ -93,7 +93,7 @@ function CitationItem({
       }
       extra={
         <Text type="secondary">
-          {Math.min(100, Math.max(0, Math.round(citation.score * 100)))}%
+          相关度 {(citation.rerank_score ?? citation.score).toFixed(3)}
         </Text>
       }
     >
@@ -110,6 +110,7 @@ function CitationItem({
           {citation.heading_path?.length > 0 && (
             <Text type="secondary">{citation.heading_path.join(' / ')}</Text>
           )}
+          <Tag>v{citation.document_version}</Tag>
         </Space>
         <p
           className={

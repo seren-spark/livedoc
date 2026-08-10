@@ -174,9 +174,24 @@ export default function RagSidebar({ editor, title }: RagSidebarProps) {
     editor
       .chain()
       .focus()
-      .insertContent(
-        `<blockquote><p>${citation.content}</p><p>来源：${citation.title} #${citation.index}</p></blockquote>`,
-      )
+      .insertContent({
+        type: 'blockquote',
+        content: [
+          {
+            type: 'paragraph',
+            content: [{ type: 'text', text: citation.content }],
+          },
+          {
+            type: 'paragraph',
+            content: [
+              {
+                type: 'text',
+                text: `来源：${citation.title} [${citation.index}]`,
+              },
+            ],
+          },
+        ],
+      })
       .run();
   };
 

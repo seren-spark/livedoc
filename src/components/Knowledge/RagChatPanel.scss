@@ -103,6 +103,43 @@
     color: #45515c;
     font-size: 14px;
   }
+
+  > span {
+    font-size: 12px;
+    text-align: center;
+  }
+}
+
+.rag-chat-panel__examples {
+  width: min(100%, 360px);
+  display: grid;
+  gap: 8px;
+  margin-top: 8px;
+
+  button {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid #dce6e3;
+    border-radius: 8px;
+    background: #fff;
+    color: #34524c;
+    font: inherit;
+    font-size: 13px;
+    line-height: 1.45;
+    text-align: left;
+    cursor: pointer;
+    transition: border-color 0.16s ease, background 0.16s ease;
+
+    &:hover:not(:disabled) {
+      border-color: #79a99f;
+      background: #f3f8f6;
+    }
+
+    &:disabled {
+      cursor: not-allowed;
+      opacity: 0.55;
+    }
+  }
 }
 
 .rag-turn + .rag-turn {
