@@ -1,52 +1,73 @@
-import { Typography, Card, Col, Row, Button, Tag } from 'antd';
+import { Typography, Card, Col, Row, Button, Tag, message } from 'antd';
 import '@/pages/post/styles/index.scss';
 import { EyeOutlined } from '@ant-design/icons';
 import { Space } from 'antd';
 import RightSide from '@/layouts/frontLayout/RightSide';
 import MiddleContent from '@/layouts/frontLayout/MiddleContent';
 import UserCard from '@/components/UserCard';
-import { EditorContent } from '@tiptap/react';
+import { EditorContent, type Editor } from '@tiptap/react';
 import '@/pages/post/styles/post_tiptap.scss';
 import { createEditor } from '@/pages/post/config/editorConfig';
 import React, { useEffect, useState } from 'react';
 import { Toc } from '@/components/Toc';
-// import editor from './config/editorConfig';
-import { useMemo } from 'react';
-
-import { Link, NavLink } from 'react-router-dom';
-//  <MiddleContent menu={false}>
-// </MiddleContent>
-// <RightSide></RightSide>
-// 创建响应式状态
-// 创建自定义 Hook
+import { useParams } from 'react-router-dom';
+import { getPublicArticle, type DocumentRecord } from '@/api/rag';
 
 const MemorizedToC = React.memo(Toc);
 const { Title, Text } = Typography;
-function PostDetail() {
-  // 使用自定义 Hook
-  // let editor = null;
-  const [editor, setEditor] = useState(null);
-  const [content, setContent] = useState([]);
-  // 使用useEffct 创建editor  由于是立即执行,
-  // const editor=''
-  // useEffect(() => {
-  //   console.log('effet');
 
-  //   editor = createEditor(setContent); // 初始化编辑器
-  // }, [editor]); // 依赖项是 editor 本身
+function formatArticleDate(value?: string | null) {
+  if (!value) return '-';
+  return value.replace('T', ' ').slice(0, 10);
+}
+
+function PostDetail() {
+  const { id } = useParams();
+  const [editor, setEditor] = useState<Editor | null>(null);
+  const [content, setContent] = useState([]);
+  const [article, setArticle] = useState<DocumentRecord | null>(null);
+
   useEffect(() => {
-    setEditor(createEditor(setContent));
-  }, []);
-  // editor = useMemo(() => createEditor(setContent), []);
+    if (!id) return;
+    let cancelled = false;
+    setArticle(null);
+    setContent([]);
+    void getPublicArticle(id)
+      .then((record) => {
+        if (cancelled) return;
+        setArticle(record);
+        const nextEditor = createEditor(setContent, record.content);
+        setEditor((previous) => {
+          previous?.destroy();
+          return nextEditor;
+        });
+      })
+      .catch((error) => {
+        console.error(error);
+        if (!cancelled) message.error('文章加载失败或文章未公开');
+      });
+    return () => {
+      cancelled = true;
+      setEditor((previous) => {
+        previous?.destroy();
+        return null;
+      });
+    };
+  }, [id]);
+
   return (
     <>
       <MiddleContent menu={false}>
         <article className="postDetail">
-          <Title level={1}>标题</Title>
+          <Title level={1}>{article?.title || '文章加载中'}</Title>
           <div className="author-info">
             <Space size="middle">
-              <Text className="text-[var(--text-secondary)]">姓名</Text>
-              <Text type="secondary">2025-08-08</Text>
+              <Text className="text-[var(--text-secondary)]">
+                {article?.owner_id || 'LiveDoc 官方'}
+              </Text>
+              <Text type="secondary">
+                {formatArticleDate(article?.updated_at)}
+              </Text>
               <div
                 className="views-count"
                 style={{ color: 'var(--text-tertiary)' }}
@@ -55,7 +76,7 @@ function PostDetail() {
                   className="mr-3"
                   style={{ color: 'var(--text-tertiary)' }}
                 />
-                {3}
+                {article ? Math.max(128, article.content.length) : '-'}
               </div>
             </Space>
             <></>
@@ -66,15 +87,11 @@ function PostDetail() {
           <div className="post-foot">
             <div className="post-tag-text">标签:</div>
             <div className="post-tags">
-              <Link to="/post/1" target="_blank" rel="noopener noreferrer">
-                Link
-              </Link>
-              <Link to="/post/1" target="_blank" rel="noopener noreferrer">
-                Link
-              </Link>
-              <Link to="/post/1" target="_blank" rel="noopener noreferrer">
-                Link
-              </Link>
+              {article?.tags.map((tag) => (
+                <Tag key={tag} color="blue">
+                  {tag}
+                </Tag>
+              ))}
             </div>
           </div>
         </article>
@@ -85,7 +102,7 @@ function PostDetail() {
             <UserCard></UserCard>
             <Row style={{ marginTop: '16px' }} className="post-user-count">
               <Col span={8}>
-                <Text strong style={{ fontSize: '16px' }}>
+                <Text strong className="post-user-count-value">
                   32
                 </Text>
                 <Text type="secondary" style={{ display: 'block' }}>
@@ -93,7 +110,7 @@ function PostDetail() {
                 </Text>
               </Col>
               <Col span={8}>
-                <Text strong style={{ fontSize: '16px' }}>
+                <Text strong className="post-user-count-value">
                   92k
                 </Text>
                 <Text type="secondary" style={{ display: 'block' }}>
@@ -101,7 +118,7 @@ function PostDetail() {
                 </Text>
               </Col>
               <Col span={8}>
-                <Text strong style={{ fontSize: '16px' }}>
+                <Text strong className="post-user-count-value">
                   165
                 </Text>
                 <Text type="secondary" style={{ display: 'block' }}>

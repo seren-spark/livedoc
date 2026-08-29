@@ -56,21 +56,19 @@ export interface DocumentIndexPayload {
   document_version?: number;
 }
 
-export type DocumentCreatePayload = Omit<
-  DocumentIndexPayload,
-  'doc_id' | 'space_id'
-> & {
+export interface DocumentCreatePayload
+  extends Omit<DocumentIndexPayload, 'doc_id' | 'space_id'> {
   doc_id?: string;
   index_now?: boolean;
   editor_content?: TipTapDocument | null;
   source_import_id?: string | null;
   asset_ids?: string[];
-};
+}
 
-export type TipTapDocument = {
+export interface TipTapDocument {
   type: 'doc';
-  content?: Array<Record<string, unknown>>;
-};
+  content?: Record<string, unknown>[];
+}
 
 export interface DocumentAsset {
   asset_id: string;
@@ -219,6 +217,8 @@ export interface AiWritePayload {
   current_context: EditorContext;
   retrieval_domain: RetrievalDomain;
   current_document?: {
+    doc_id?: string;
+    document_version?: number;
     title: string;
     content: string;
   };
@@ -287,6 +287,64 @@ export interface AiWriteResponse {
   citations: Citation[];
   has_evidence: boolean;
   can_insert: boolean;
+}
+
+export interface MemoryEvidence {
+  hash: string;
+  anchor: string;
+  snippet: string;
+}
+
+interface DocumentMemoryItemBase {
+  id: string;
+  evidence: MemoryEvidence[];
+  confidence: number;
+  origin: 'auto' | 'user';
+  pinned: boolean;
+}
+
+export interface GlossaryMemoryItem extends DocumentMemoryItemBase {
+  term: string;
+  definition: string;
+  aliases: string[];
+}
+
+export interface StyleMemoryItem extends DocumentMemoryItemBase {
+  label: string;
+  instruction: string;
+}
+
+export interface GlobalSettingMemoryItem extends DocumentMemoryItemBase {
+  key: string;
+  value: string;
+}
+
+export interface DocumentMemoryProfile {
+  doc_id: string;
+  space_id: string;
+  source_document_version: number;
+  memory_version: number;
+  status: 'pending' | 'extracting' | 'ready' | 'failed';
+  glossary: GlossaryMemoryItem[];
+  style_tags: StyleMemoryItem[];
+  global_settings: GlobalSettingMemoryItem[];
+  suppressed_keys: string[];
+  source_chunk_hashes: string[];
+  last_error: string | null;
+  created_at: string | null;
+  updated_at: string | null;
+}
+
+export interface DocumentMemoryUpdatePayload {
+  expected_memory_version: number;
+  glossary: {
+    id?: string;
+    term: string;
+    definition: string;
+    aliases: string[];
+  }[];
+  style_tags: { id?: string; label: string; instruction: string }[];
+  global_settings: { id?: string; key: string; value: string }[];
 }
 
 export interface EditorAssistPayload {
@@ -394,6 +452,25 @@ export async function listKnowledgeDocuments(params?: {
   };
 }
 
+export async function listPublicArticles(params?: {
+  page?: number;
+  page_size?: number;
+  q?: string;
+}) {
+  const { data } = await ragClient.get('/public/articles', { params });
+  return data as {
+    items: DocumentRecord[];
+    total: number;
+    page: number;
+    page_size: number;
+  };
+}
+
+export async function getPublicArticle(docId: string) {
+  const { data } = await ragClient.get(`/public/articles/${docId}`);
+  return data as DocumentRecord;
+}
+
 export async function getKnowledgeDocument(docId: string) {
   const { data } = await ragClient.get(`/documents/${docId}`);
   return data as DocumentRecord;
@@ -415,6 +492,32 @@ export async function deleteKnowledgeDocument(docId: string) {
 export async function reindexKnowledgeDocument(docId: string) {
   const { data } = await ragClient.post(`/documents/${docId}/reindex`);
   return data as IndexJob;
+}
+
+export async function getDocumentMemory(docId: string) {
+  const { data } = await ragClient.get(`/documents/${docId}/memory`);
+  return data as DocumentMemoryProfile;
+}
+
+export async function updateDocumentMemory(
+  docId: string,
+  payload: DocumentMemoryUpdatePayload,
+) {
+  const { data } = await ragClient.patch(`/documents/${docId}/memory`, payload);
+  return data as DocumentMemoryProfile;
+}
+
+export async function refreshDocumentMemory(docId: string) {
+  const { data } = await ragClient.post(`/documents/${docId}/memory/refresh`);
+  return data as {
+    memory: DocumentMemoryProfile;
+    job: {
+      job_id: string;
+      document_version: number;
+      status: string;
+      attempts: number;
+    } | null;
+  };
 }
 
 async function parseFetchError(response: Response) {
@@ -484,20 +587,29 @@ export async function confirmDocumentImport(importId: string) {
   return data as { document: DocumentRecord; index_job: IndexJob };
 }
 
+/**
+ * 上传文档资产
+ * @param file 资产文件
+ * @param parent 可选的关联信息 import_id 表示该图片属于哪次文档导入，doc_id 表示属于哪篇文档。两者都是可选的，因为上传时文档可能还没创建
+ * @returns 资产记录
+ */
 export async function uploadDocumentAsset(
   file: File,
   parent: { import_id?: string; doc_id?: string },
 ) {
+  //创建 FormData 对象（multipart/form-data 格式），把图片文件挂到 file 字段。这是文件上传的标准方式，不能用 JSON
   const body = new FormData();
   body.append('file', file);
   if (parent.import_id) body.append('import_id', parent.import_id);
   if (parent.doc_id) body.append('doc_id', parent.doc_id);
+  //向后端 /assets 接口发 POST 请求。
   const response = await fetch(`${ragBaseURL}/assets`, {
     method: 'POST',
     headers: authHeaders(),
     body,
   });
   if (!response.ok) throw await parseFetchError(response);
+  //拿到 DocumentAsset（含 asset_id）记录
   return (await response.json()) as DocumentAsset;
 }
 
@@ -631,7 +743,13 @@ export async function streamAiWrite(
     if (eventName === 'delta') handlers.onDelta(String(data));
     if (eventName === 'done') {
       handlers.onDone(
-        data as { status: string; has_evidence: boolean; can_insert: boolean; request_id: string; trace_id: string },
+        data as {
+          status: string;
+          has_evidence: boolean;
+          can_insert: boolean;
+          request_id: string;
+          trace_id: string;
+        },
       );
     }
     if (eventName === 'error') {
@@ -666,13 +784,13 @@ export async function seedRagDemoData() {
   const { data } = await ragClient.post('/dev/seed');
   return data as {
     status: 'seeded';
-    documents: Array<{
+    documents: {
       doc_id: string;
       title: string;
       action: 'created' | 'updated' | 'unchanged';
       index_status: DocumentRecord['index_status'];
       job_id: string | null;
-    }>;
+    }[];
   };
 }
 

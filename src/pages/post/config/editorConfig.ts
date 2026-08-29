@@ -57,7 +57,9 @@ const FlexibleParagraph = Paragraph.extend({
   },
 });
 
-export const createEditor = (set?: any) => {
+const fallbackContent = '# 文章加载中\n\n正在读取数据库中的公共文章内容。';
+
+export const createEditor = (set?: any, initialMarkdown = fallbackContent) => {
   const editor = new Editor({
     editable: false,
     extensions: [
@@ -140,9 +142,7 @@ export const createEditor = (set?: any) => {
         },
       }).configure({ lowlight }),
     ],
-    content: marked.parse(
-      "# 测试标题 \n ## 测试标题2 \n ### 测试标题3 \n ### 测试标题3 \n ### 测试标题3 \n ### 测试标题3 \n #### 测试标题4 \n ##### 测试标题5 \n ###### 测试标题6 \n 测试代码块 \n ```javascript \n console.log('hello world'); \n ``` \n 测试图片 \n ![图片](https://picsum.photos/200/300) \n 测试链接 \n [链接](https://)",
-    ),
+    content: marked.parse(initialMarkdown || fallbackContent),
     // autofocus: true,
   });
   return editor;

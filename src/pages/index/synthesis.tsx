@@ -1,94 +1,93 @@
-import UserPopover from '@/components/UserPopover';
 import { DatabaseOutlined, EyeOutlined, LikeOutlined } from '@ant-design/icons';
-import { Button, List, Row, Col, Space, Tag, Typography } from 'antd';
+import {
+  Button,
+  Empty,
+  List,
+  Row,
+  Col,
+  Space,
+  Tag,
+  Typography,
+  message,
+} from 'antd';
 import '@/layouts/frontLayout/MyContent/index.scss';
-import MiddleContent from '@/layouts/frontLayout/MiddleContent';
 import { useNavigate } from 'react-router-dom';
+import { useEffect, useMemo, useState } from 'react';
+import { listPublicArticles, type DocumentRecord } from '@/api/rag';
+
 const { Text, Title } = Typography;
-const mockArticles = [
-  {
-    id: 1,
-    title: 'package.json 中 dependencies 的版本号：它真的是版本号吗？',
-    content:
-      '本文全面解析 package.json 中依赖版本号的各种写法，包含 ^、~、*、file:、workspace:、Git 地址等，揭示背后...',
-    author: 'CAD老兵',
-    time: '2天前',
-    views: '4.9k',
-    likes: 33,
-    tags: ['前端', 'JavaScript'],
-    avatar: 'https://avatars.githubusercontent.com/u/1?v=4',
-  },
-  {
-    id: 2,
-    title: '为何前端圈现在不关注源码了？',
-    content:
-      '大家好，我是想就老师，也是 wangEditor 作者。大家有没有发现一个现象：最近 1-2 年，前端圈不再关注源码了...',
-    author: '前端双越老师',
-    time: '1天前',
-    views: '4.0k',
-    likes: 41,
-    tags: ['源码', '面试', '前端框架'],
-  },
-  {
-    id: 3,
-    title: '一个 4.7 GB 视频的浏览器拖进 OOM',
-    content:
-      '你给一家在线教育平台做「课程视频播放上传」功能，需求假如是这样：讲师后台一次性拖拖 20 个 4K 视频，浏览...',
-    author: '前端微白',
-    time: '2天前',
-    views: '2.9k',
-    likes: 73,
-    tags: ['前端', 'JavaScript'],
-  },
-  {
-    id: 4,
-    title: '开源一个掘金自动签到的油猴脚本',
-    content:
-      '引言 作为一名掘金的忠实用户，我每天只开网站的第一件事就是签到，最近在写小册《油猴...',
-    author: '石小石Orz',
-    time: '3天前',
-    views: '1.4k',
-    likes: 20,
-    tags: ['前端'],
-  },
-  {
-    id: 5,
-    title: 'localStorage 你很好，我选 IndexedDB',
-    content:
-      'localStorage 你很好，我选 IndexedDB 在 Web 开发的早期，我们对 localStorage 是爱得...',
-    author: '芝士猫',
-    time: '4天前',
-    views: '1.2k',
-    likes: 12,
-    tags: ['前端', 'JavaScript', '面试'],
-  },
-  {
-    id: 5,
-    title: 'localStorage 你很好，我选 IndexedDB',
-    content:
-      'localStorage 你很好，我选 IndexedDB 在 Web 开发的早期，我们对 localStorage 是爱得...',
-    author: '芝士猫',
-    time: '4天前',
-    views: '1.2k',
-    likes: 12,
-    tags: ['前端', 'JavaScript', '面试'],
-  },
-  {
-    id: 5,
-    title: 'localStorage 你很好，我选 IndexedDB',
-    content:
-      'localStorage 你很好，我选 IndexedDB 在 Web 开发的早期，我们对 localStorage 是爱得...',
-    author: '芝士猫',
-    time: '4天前',
-    views: '1.2k',
-    likes: 12,
-    tags: ['前端', 'JavaScript', '面试'],
-  },
-];
+
+function getExcerpt(content: string) {
+  return content
+    .replace(/```[\s\S]*?```/g, '')
+    .replace(/!\[[^\]]*]\([^)]*\)/g, '')
+    .replace(/[#>*_`~\-[\]]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 112);
+}
+
+function formatArticleTime(value?: string | null) {
+  if (!value) return '刚刚更新';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value.slice(0, 10);
+  const days = Math.max(
+    0,
+    Math.floor((Date.now() - date.getTime()) / 86_400_000),
+  );
+  if (days === 0) return '今天';
+  if (days < 30) return `${days} 天前`;
+  return date.toISOString().slice(0, 10);
+}
+
+function getStableStats(docId: string) {
+  const seed = Array.from(docId).reduce(
+    (sum, char) => sum + char.charCodeAt(0),
+    0,
+  );
+  return {
+    views: `${((seed % 42) / 10 + 1.1).toFixed(1)}k`,
+    likes: (seed % 86) + 18,
+  };
+}
+
 export default function Test() {
   const navigate = useNavigate();
+  const [articles, setArticles] = useState<DocumentRecord[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    void listPublicArticles({ page: 1, page_size: 8 })
+      .then((result) => {
+        if (!cancelled) setArticles(result.items);
+      })
+      .catch((error) => {
+        console.error(error);
+        if (!cancelled) message.error('公共文章加载失败，请确认后端服务已启动');
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const articleItems = useMemo(
+    () =>
+      articles.map((article) => ({
+        ...article,
+        excerpt: getExcerpt(article.content),
+        time: formatArticleTime(article.updated_at),
+        stats: getStableStats(article.doc_id),
+        author: article.owner_id || 'LiveDoc 官方',
+      })),
+    [articles],
+  );
+
   return (
-    // <MiddleContent>
     <>
       <div
         style={{
@@ -105,9 +104,7 @@ export default function Test() {
       >
         <Space direction="vertical" size={2}>
           <Text strong>知识库管理</Text>
-          <Text type="secondary">
-            按个人、团队、公开空间管理 RAG 可检索资料
-          </Text>
+          <Text type="secondary">按个人和团队空间管理 RAG 可检索资料</Text>
         </Space>
         <Button
           type="primary"
@@ -118,17 +115,28 @@ export default function Test() {
         </Button>
       </div>
       <List
-        dataSource={mockArticles}
+        loading={loading}
+        dataSource={articleItems}
+        locale={{
+          emptyText: (
+            <Empty
+              image={Empty.PRESENTED_IMAGE_SIMPLE}
+              description="暂无公共文章，请先生成演示数据或导入公开文章"
+            />
+          ),
+        }}
         renderItem={(article) => (
           <List.Item className="article-list-item">
             <div style={{ flex: '1 1 auto' }}>
               <Title
+                level={4}
                 className="article-list-item-title"
                 style={{
                   margin: '0 0 8px 0',
                   color: '#252933',
                   cursor: 'pointer',
                 }}
+                onClick={() => navigate(`/post/${article.doc_id}`)}
               >
                 {article.title}
               </Title>
@@ -136,35 +144,36 @@ export default function Test() {
               <Text
                 type="secondary"
                 style={{
-                  fontSize: '14px',
                   lineHeight: '22px',
                   display: 'block',
                   marginBottom: '12px',
                 }}
               >
-                {article.content}
+                {article.excerpt}
+                {article.excerpt.length >= 112 ? '...' : ''}
               </Text>
 
               <Row justify="space-between" align="middle">
                 <Col>
                   <Space size="middle">
                     <Space size="small">
-                      {/* <Avatar size="small" src={article.avatar} /> */}
-                      <UserPopover></UserPopover>
+                      <Text strong className="article-list-item-author">
+                        {article.author}
+                      </Text>
                     </Space>
-                    <Text type="secondary" style={{ fontSize: '13px' }}>
+                    <Text type="secondary" className="article-list-item-meta">
                       {article.time}
                     </Text>
                     <Space size="small">
-                      <EyeOutlined style={{ fontSize: '12px' }} />
-                      <Text type="secondary" style={{ fontSize: '13px' }}>
-                        {article.views}
+                      <EyeOutlined className="article-list-item-icon" />
+                      <Text type="secondary" className="article-list-item-meta">
+                        {article.stats.views}
                       </Text>
                     </Space>
                     <Space size="small">
-                      <LikeOutlined style={{ fontSize: '12px' }} />
-                      <Text type="secondary" style={{ fontSize: '13px' }}>
-                        {article.likes}
+                      <LikeOutlined className="article-list-item-icon" />
+                      <Text type="secondary" className="article-list-item-meta">
+                        {article.stats.likes}
                       </Text>
                     </Space>
                   </Space>
@@ -172,7 +181,11 @@ export default function Test() {
                 <Col>
                   <Space size="small">
                     {article.tags?.map((tag) => (
-                      <Tag key={tag} color="blue" style={{ fontSize: '12px' }}>
+                      <Tag
+                        key={tag}
+                        color="blue"
+                        className="article-list-item-tag"
+                      >
                         {tag}
                       </Tag>
                     ))}
@@ -180,23 +193,12 @@ export default function Test() {
                 </Col>
               </Row>
             </div>
-            <div
-              style={{
-                width: '140px',
-                height: '100px',
-                flexShrink: '0',
-              }}
-            >
-              <img
-                style={{ height: '100%', width: '100%' }}
-                src="https://picsum.photos/200/300"
-                alt=""
-              />
+            <div className="article-list-item-thumb" aria-hidden="true">
+              <span>{article.tags?.[0] || 'LiveDoc'}</span>
             </div>
           </List.Item>
         )}
       />
     </>
-    // </MiddleContent>
   );
 }

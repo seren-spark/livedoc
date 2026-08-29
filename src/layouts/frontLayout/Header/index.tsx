@@ -13,17 +13,15 @@ import {
   Space,
   Badge,
   message,
-  Button,
 } from 'antd';
 
-import { NavLink, useNavigate } from 'react-router-dom';
+import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 
 import { BellFilled, CaretDownFilled } from '@ant-design/icons';
 
 import { useScrollVisibility } from '@/hooks/useScrollVisibility';
 
 import UserDropdown from '@/components/UserDropdown';
-import LoginRegisterModal from '@/components/LoginForm';
 import { useAuth } from '@/contexts/authContext';
 import LoginRequiredButton from '@/components/LoginRequiredButton';
 
@@ -38,7 +36,7 @@ const { Search } = Input;
 // 默认头部菜单
 const defaultHeadMenu: MenuItem[] = [
   {
-    key: '/',
+    key: '/synthesis',
     label: '首页',
   },
   {
@@ -46,34 +44,26 @@ const defaultHeadMenu: MenuItem[] = [
     label: '沸点',
   },
   {
-    key: '/dowbload',
-    label: '下载',
-  },
-  {
-    key: '/live',
-    label: '直播',
-  },
-  {
     key: '/ai',
     label: 'AI',
-  },
-  {
-    key: '/livevideo',
-    label: '直播测试Hbr',
   },
   {
     key: '/editor/draft',
     label: '编辑器',
   },
+  {
+    key: '/knowledge',
+    label: '知识库',
+  },
 ];
 // 创作者中心菜单
 const items = [
   {
-    key: '1',
+    key: '/editor/draft',
     label: '写文章',
   },
   {
-    key: '2',
+    key: '/pins',
     label: '写沸点',
   },
 ];
@@ -96,7 +86,7 @@ const messageItems: MenuProps['items'] = [
     ),
   },
   {
-    key: '3',
+    key: '4',
     label: (
       <a
         target="_blank"
@@ -122,33 +112,18 @@ const messageItems: MenuProps['items'] = [
 ];
 export default function MyHeader(props?: MyHeaderProps) {
   const { headMenu } = props || {};
-  // const { token } = useToken();
   const { requireAuth, isLoggedIn } = useAuth();
-  const menuStyle: React.CSSProperties = {
-    boxShadow: 'none',
-  };
 
   const {
-    token: {
-      colorBgContainer,
-      colorBgElevated,
-      borderRadiusLG,
-      boxShadowSecondary,
-    },
+    token: { colorBgContainer },
   } = theme.useToken();
-  // const contentStyle: React.CSSProperties = {
-  // backgroundColor: token.colorBgElevated,
-  // borderRadius: token.borderRadiusLG,
-  // boxShadow: token.boxShadowSecondary,
-  // };
+  const navigate = useNavigate();
+  const location = useLocation();
+  const visible = useScrollVisibility();
   const handleMenu: MenuProps['onClick'] = (e) => {
     navigate(e.key);
   };
-  const navigate = useNavigate();
-  const visible = useScrollVisibility();
   const handleLoginModal = () => {
-    console.log('点了');
-
     requireAuth(() => {
       message.success('点赞成功');
     });
@@ -194,7 +169,7 @@ export default function MyHeader(props?: MyHeaderProps) {
 
                 <Dropdown.Button
                   type="primary"
-                  menu={{ items }}
+                  menu={{ items, onClick: handleMenu }}
                   icon={<CaretDownFilled />}
                 >
                   创作者中心
@@ -204,12 +179,7 @@ export default function MyHeader(props?: MyHeaderProps) {
                   <>
                     <Dropdown menu={{ items: messageItems }}>
                       <Badge count={1} size="small" onClick={handleLoginModal}>
-                        <BellFilled
-                          style={{
-                            fontSize: '20px',
-                            color: `#8a919f`,
-                          }}
-                        />
+                        <BellFilled className="header-bell" />
                       </Badge>
                     </Dropdown>
 

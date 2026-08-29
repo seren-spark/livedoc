@@ -22,7 +22,6 @@ import {
   EditOutlined,
   FileAddOutlined,
   FolderOpenOutlined,
-  GlobalOutlined,
   HeartOutlined,
   HistoryOutlined,
   InboxOutlined,
@@ -52,12 +51,7 @@ import './index.scss';
 
 const { Text, Title } = Typography;
 
-type SpaceKey =
-  | 'private'
-  | 'public'
-  | 'recent'
-  | 'favorite'
-  | `team:${string}`;
+type SpaceKey = 'private' | 'recent' | 'favorite' | `team:${string}`;
 
 const statusColor: Record<DocumentRecord['index_status'], string> = {
   pending: 'default',
@@ -121,7 +115,6 @@ function getFolderName(record: DocumentRecord) {
 
 function matchesSpace(record: DocumentRecord, spaceKey: SpaceKey) {
   if (spaceKey === 'private') return record.visibility === 'private';
-  if (spaceKey === 'public') return record.visibility === 'public';
   if (spaceKey === 'recent') return true;
   if (spaceKey === 'favorite') {
     return record.tags?.some((tag) =>
@@ -136,7 +129,6 @@ function matchesSpace(record: DocumentRecord, spaceKey: SpaceKey) {
 
 function spaceTitle(spaceKey: SpaceKey) {
   if (spaceKey === 'private') return '我的知识库';
-  if (spaceKey === 'public') return '公共知识库';
   if (spaceKey === 'recent') return '最近文档';
   if (spaceKey === 'favorite') return '收藏文档';
   return spaceKey.slice(5);
@@ -151,8 +143,9 @@ export default function KnowledgePage() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
   const [loading, setLoading] = useState(false);
-  const [activeImport, setActiveImport] =
-    useState<DocumentImportRecord | null>(null);
+  const [activeImport, setActiveImport] = useState<DocumentImportRecord | null>(
+    null,
+  );
   const [importing, setImporting] = useState(false);
   const [seeding, setSeeding] = useState(false);
   const [metrics, setMetrics] = useState<RagMetrics | null>(null);
@@ -166,7 +159,7 @@ export default function KnowledgePage() {
     DocumentRecord['index_status'] | 'all'
   >('all');
   const [visibilityFilter, setVisibilityFilter] = useState<
-    DocumentRecord['visibility'] | 'all'
+    Extract<DocumentRecord['visibility'], 'private' | 'team'> | 'all'
   >('all');
 
   const loadDocs = async (options: { background?: boolean } = {}) => {
@@ -187,11 +180,9 @@ export default function KnowledgePage() {
             ? visibilityFilter
             : selectedSpace === 'private'
               ? 'private'
-              : selectedSpace === 'public'
-                ? 'public'
-                : isTeamSpace
-                  ? 'team'
-                  : undefined,
+              : isTeamSpace
+                ? 'team'
+                : undefined,
         team_id: isTeamSpace ? selectedSpace.slice(5) : undefined,
         tag: selectedFolder !== '全部文档' ? selectedFolder : undefined,
         index_status: statusFilter !== 'all' ? statusFilter : undefined,
@@ -227,7 +218,16 @@ export default function KnowledgePage() {
   useEffect(() => {
     const timer = window.setTimeout(() => void loadDocs(), 250);
     return () => window.clearTimeout(timer);
-  }, [isLoggedIn, page, pageSize, keyword, selectedFolder, selectedSpace, statusFilter, visibilityFilter]);
+  }, [
+    isLoggedIn,
+    page,
+    pageSize,
+    keyword,
+    selectedFolder,
+    selectedSpace,
+    statusFilter,
+    visibilityFilter,
+  ]);
 
   useEffect(() => {
     if (!isLoggedIn) {
@@ -286,10 +286,7 @@ export default function KnowledgePage() {
   );
 
   useEffect(() => {
-    if (
-      !isLoggedIn ||
-      !hasActiveIndexJobs
-    ) {
+    if (!isLoggedIn || !hasActiveIndexJobs) {
       return;
     }
     let cancelled = false;
@@ -301,10 +298,9 @@ export default function KnowledgePage() {
         timer = window.setTimeout(poll, 5000);
         return;
       }
-      await Promise.all([
-        loadDocs({ background: true }),
-        loadMetrics(),
-      ]).catch(console.error);
+      await Promise.all([loadDocs({ background: true }), loadMetrics()]).catch(
+        console.error,
+      );
       attempt += 1;
       timer = window.setTimeout(poll, Math.min(10_000, 2000 * 1.4 ** attempt));
     };
@@ -338,26 +334,33 @@ export default function KnowledgePage() {
     setPage(1);
   }, [keyword, selectedFolder, statusFilter, visibilityFilter]);
 
+  const personalDocs = useMemo(
+    () => docs.filter((doc) => doc.visibility !== 'public'),
+    [docs],
+  );
+
   const teams = useMemo(() => {
     const ids = Array.from(
       new Set(
-        docs
+        personalDocs
           .filter((doc) => doc.visibility === 'team' && doc.team_id)
           .map((doc) => doc.team_id as string),
       ),
     );
     return ids.sort();
-  }, [docs]);
+  }, [personalDocs]);
 
   const spaceDocs = useMemo(() => {
-    const scoped = docs.filter((doc) => matchesSpace(doc, selectedSpace));
+    const scoped = personalDocs.filter((doc) =>
+      matchesSpace(doc, selectedSpace),
+    );
     if (selectedSpace === 'recent') {
       return [...scoped]
         .sort((a, b) => b.updated_at.localeCompare(a.updated_at))
         .slice(0, 30);
     }
     return scoped;
-  }, [docs, selectedSpace]);
+  }, [personalDocs, selectedSpace]);
 
   const folders = useMemo(() => {
     const names = Array.from(new Set(spaceDocs.map(getFolderName))).sort();
@@ -392,12 +395,13 @@ export default function KnowledgePage() {
 
   const counts = useMemo(
     () => ({
-      private: docs.filter((doc) => doc.visibility === 'private').length,
-      public: docs.filter((doc) => doc.visibility === 'public').length,
-      favorite: docs.filter((doc) => matchesSpace(doc, 'favorite')).length,
+      private: personalDocs.filter((doc) => doc.visibility === 'private')
+        .length,
+      favorite: personalDocs.filter((doc) => matchesSpace(doc, 'favorite'))
+        .length,
       ready: tableDocs.filter((doc) => doc.index_status === 'ready').length,
     }),
-    [docs, tableDocs],
+    [personalDocs, tableDocs],
   );
 
   const currentTarget = () => {
@@ -405,13 +409,9 @@ export default function KnowledgePage() {
     const folderTag = !systemFolders.has(selectedFolder)
       ? [selectedFolder]
       : [];
-    const visibility = isTeamSpace
-        ? 'team'
-        : selectedSpace === 'public'
-          ? 'public'
-          : 'private';
+    const visibility = isTeamSpace ? 'team' : 'private';
     return {
-      visibility: visibility as 'private' | 'team' | 'public',
+      visibility: visibility as 'private' | 'team',
       team_id: isTeamSpace ? selectedSpace.slice(5) : '',
       tags: folderTag,
       folder: folderTag[0] || '',
@@ -469,7 +469,7 @@ export default function KnowledgePage() {
     Modal.confirm({
       title: '生成真实 RAG 演示数据',
       content:
-        '将为当前账号创建或还原公开、个人和所属团队的演示文档，并进入真实 BGE + Qdrant 索引队列。不会创建其他用户或其他团队的资料。',
+        '将为当前账号创建或还原个人和所属团队的演示文档；公共文章会写入全站文章池，但不会出现在普通知识库管理页。',
       okText: '生成并建立索引',
       cancelText: '取消',
       onOk: async () => {
@@ -487,7 +487,9 @@ export default function KnowledgePage() {
           await loadDocs();
         } catch (error) {
           console.error(error);
-          message.error('生成演示数据失败，请检查 API 与索引 worker 是否已启动');
+          message.error(
+            '生成演示数据失败，请检查 API 与索引 worker 是否已启动',
+          );
           throw error;
         } finally {
           setSeeding(false);
@@ -623,12 +625,12 @@ export default function KnowledgePage() {
     return Object.fromEntries(
       teams.map((teamId) => [
         teamId,
-        docs.filter(
+        personalDocs.filter(
           (doc) => doc.visibility === 'team' && doc.team_id === teamId,
         ).length,
       ]),
     );
-  }, [docs, teams]);
+  }, [personalDocs, teams]);
 
   const renderNavItem = (
     key: SpaceKey,
@@ -653,10 +655,15 @@ export default function KnowledgePage() {
       <Badge
         count={count}
         showZero
-        color={selectedSpace === key ? '#0f766e' : '#9ca3af'}
+        color={selectedSpace === key ? '#1e80ff' : '#a8b1bd'}
       />
     </button>
   );
+
+  const tableTotal =
+    selectedSpace === 'recent' || selectedSpace === 'favorite'
+      ? tableDocs.length
+      : total;
 
   return (
     <div className="knowledge-page">
@@ -692,12 +699,6 @@ export default function KnowledgePage() {
               teamCounts[teamId] || 0,
             ),
           )}
-          {renderNavItem(
-            'public',
-            <GlobalOutlined />,
-            '公共知识库',
-            counts.public,
-          )}
         </div>
 
         <div className="knowledge-nav-group">
@@ -706,7 +707,7 @@ export default function KnowledgePage() {
             'recent',
             <HistoryOutlined />,
             '最近文档',
-            Math.min(docs.length, 30),
+            Math.min(personalDocs.length, 30),
           )}
           {renderNavItem(
             'favorite',
@@ -723,7 +724,7 @@ export default function KnowledgePage() {
             <Text type="secondary">当前空间</Text>
             <Title level={3}>{spaceTitle(selectedSpace)}</Title>
           </div>
-          <Space>
+          <Space className="knowledge-header__actions" wrap size={[8, 8]}>
             {!isLoggedIn && (
               <Button onClick={showLoginModal} type="primary">
                 登录演示账号
@@ -807,7 +808,11 @@ export default function KnowledgePage() {
               </Text>
               <Space>
                 {['failed', 'retry_wait'].includes(activeImport.status) && (
-                  <Button size="small" onClick={retryImport} loading={importing}>
+                  <Button
+                    size="small"
+                    onClick={retryImport}
+                    loading={importing}
+                  >
                     重试解析
                   </Button>
                 )}
@@ -918,7 +923,6 @@ export default function KnowledgePage() {
               { label: '全部权限', value: 'all' },
               { label: '个人私有', value: 'private' },
               { label: '团队共享', value: 'team' },
-              { label: '公开', value: 'public' },
             ]}
           />
           <Select
@@ -940,7 +944,7 @@ export default function KnowledgePage() {
           {!isLoggedIn ? (
             <Empty
               image={Empty.PRESENTED_IMAGE_SIMPLE}
-              description="登录后查看个人、团队和公开知识库"
+              description="登录后查看个人和团队知识库"
             >
               <Button type="primary" onClick={showLoginModal}>
                 登录演示账号
@@ -952,10 +956,11 @@ export default function KnowledgePage() {
               loading={loading}
               columns={columns}
               dataSource={tableDocs}
+              scroll={{ x: 1080 }}
               pagination={{
                 current: page,
                 pageSize,
-                total,
+                total: tableTotal,
                 showSizeChanger: true,
                 showTotal: (total) => `共 ${total} 篇文档`,
                 onChange: (nextPage, nextPageSize) => {
@@ -968,7 +973,6 @@ export default function KnowledgePage() {
           )}
         </section>
       </main>
-
     </div>
   );
 }

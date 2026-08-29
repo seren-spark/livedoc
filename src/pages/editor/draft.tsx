@@ -38,6 +38,7 @@ const TiptapEditor = () => {
   const { requireAuth } = useAuth();
   const items = useSelector((state: any) => state.toc.tocItems);
   const [collapsed, setCollapsed] = useState(false);
+  //组件挂载后立即调用
   const knowledgeSession = useKnowledgeDocumentSession(editor);
   const { title, setTitle } = knowledgeSession;
   const [ragChatOpen, setRagChatOpen] = useState(false);
@@ -435,6 +436,8 @@ const TiptapEditor = () => {
       <RagChatPanel
         editor={editor}
         title={title}
+        documentId={knowledgeSession.documentRecord?.doc_id}
+        documentVersion={knowledgeSession.documentRecord?.document_version}
         open={ragChatOpen}
         onClose={() => setRagChatOpen(false)}
         onRequireLogin={requireAuth}

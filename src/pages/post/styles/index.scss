@@ -36,6 +36,10 @@
     padding: 20px;
   }
   .post-user-count {
+    &-value {
+      font-size: var(--font-size-body);
+    }
+
     .ant-col {
       display: flex;
       justify-content: center;
