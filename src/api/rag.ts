@@ -289,64 +289,6 @@ export interface AiWriteResponse {
   can_insert: boolean;
 }
 
-export interface MemoryEvidence {
-  hash: string;
-  anchor: string;
-  snippet: string;
-}
-
-interface DocumentMemoryItemBase {
-  id: string;
-  evidence: MemoryEvidence[];
-  confidence: number;
-  origin: 'auto' | 'user';
-  pinned: boolean;
-}
-
-export interface GlossaryMemoryItem extends DocumentMemoryItemBase {
-  term: string;
-  definition: string;
-  aliases: string[];
-}
-
-export interface StyleMemoryItem extends DocumentMemoryItemBase {
-  label: string;
-  instruction: string;
-}
-
-export interface GlobalSettingMemoryItem extends DocumentMemoryItemBase {
-  key: string;
-  value: string;
-}
-
-export interface DocumentMemoryProfile {
-  doc_id: string;
-  space_id: string;
-  source_document_version: number;
-  memory_version: number;
-  status: 'pending' | 'extracting' | 'ready' | 'failed';
-  glossary: GlossaryMemoryItem[];
-  style_tags: StyleMemoryItem[];
-  global_settings: GlobalSettingMemoryItem[];
-  suppressed_keys: string[];
-  source_chunk_hashes: string[];
-  last_error: string | null;
-  created_at: string | null;
-  updated_at: string | null;
-}
-
-export interface DocumentMemoryUpdatePayload {
-  expected_memory_version: number;
-  glossary: {
-    id?: string;
-    term: string;
-    definition: string;
-    aliases: string[];
-  }[];
-  style_tags: { id?: string; label: string; instruction: string }[];
-  global_settings: { id?: string; key: string; value: string }[];
-}
-
 export interface EditorAssistPayload {
   query: string;
   title?: string;
@@ -492,32 +434,6 @@ export async function deleteKnowledgeDocument(docId: string) {
 export async function reindexKnowledgeDocument(docId: string) {
   const { data } = await ragClient.post(`/documents/${docId}/reindex`);
   return data as IndexJob;
-}
-
-export async function getDocumentMemory(docId: string) {
-  const { data } = await ragClient.get(`/documents/${docId}/memory`);
-  return data as DocumentMemoryProfile;
-}
-
-export async function updateDocumentMemory(
-  docId: string,
-  payload: DocumentMemoryUpdatePayload,
-) {
-  const { data } = await ragClient.patch(`/documents/${docId}/memory`, payload);
-  return data as DocumentMemoryProfile;
-}
-
-export async function refreshDocumentMemory(docId: string) {
-  const { data } = await ragClient.post(`/documents/${docId}/memory/refresh`);
-  return data as {
-    memory: DocumentMemoryProfile;
-    job: {
-      job_id: string;
-      document_version: number;
-      status: string;
-      attempts: number;
-    } | null;
-  };
 }
 
 async function parseFetchError(response: Response) {
