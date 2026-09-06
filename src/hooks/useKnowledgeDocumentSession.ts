@@ -334,6 +334,7 @@ export function useKnowledgeDocumentSession(editor: Editor | null) {
     // 2. 重新填充编辑器内容(将资源 URL 替换为 Blob URL 用于预览)
     hydrating.current = true;
     try {
+      // 2.1 重新填充编辑器内容(将资源 URL 替换为 Blob URL 用于预览)
       editor.commands.setContent(
         await hydrateEditorContent(
           stable,

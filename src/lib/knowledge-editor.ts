@@ -85,8 +85,11 @@ export async function persistInlineImages(
   upload: (file: File) => Promise<DocumentAsset>,
   blobUrls: AssetBlobMap,
 ) {
+  //避免直接污染编辑器内存里的原始文档。
   const cloned = structuredClone(content) as EditorNode;
   const imageNodes: EditorNode[] = [];
+  //递归遍历 TipTap 文档树所有节点（自定义工具函数）
+  //把所有类型为image、并且有 src 属性的图片节点全部收集到数组。
   walkNodes(cloned, (node) => {
     if (node.type === 'image' && typeof node.attrs?.src === 'string') {
       imageNodes.push(node);
@@ -119,15 +122,16 @@ export function stabilizeEditorContent(
 }
 
 export function editorHtmlToMarkdown(html: string, blobUrls: AssetBlobMap) {
+  // 把 HTML 字符串，解析成浏览器内存里的 DOM 文档对象。
   const document = new DOMParser().parseFromString(html, 'text/html');
   document.querySelectorAll('img').forEach((image) => {
     const assetId = assetIdFromUrl(image.getAttribute('src') || '', blobUrls);
     if (assetId) image.setAttribute('src', `/assets/${assetId}/content`);
   });
   const turndown = new TurndownService({
-    codeBlockStyle: 'fenced',
-    emDelimiter: '*',
-    bulletListMarker: '-',
+    codeBlockStyle: 'fenced', // 代码块用 ``` 风格，而不是缩进风格
+    emDelimiter: '*', // 斜体用 *italic* 而不是 _italic_
+    bulletListMarker: '-',  // 无序列表用 - 而不是 *
   });
   turndown.addRule('knowledge-image', {
     filter: 'img',
@@ -197,12 +201,17 @@ function walkNodes(node: EditorNode, visit: (node: EditorNode) => void) {
   node.content.forEach((child: EditorNode) => walkNodes(child, visit));
 }
 
+/** 把 Base64 编码的图片数据转换成 File 对象 */
 function dataUrlToFile(dataUrl: string, filename: string) {
+  // 1.正则解析 dataURL 字符串，提取出 MIME 类型和 Base64 编码的图片数据。
   const match = dataUrl.match(/^data:([^;,]+);base64,(.+)$/);
   if (!match) throw new Error('无法识别编辑器中的图片数据');
+  //把 base64 字符串解码成 ASCII 字符串。
   const bytes = atob(match[2]);
+  // 2.把 ASCII 字符串转换成 Uint8Array，这是 File 构造函数需要的参数。
   const buffer = new Uint8Array(bytes.length);
   for (let index = 0; index < bytes.length; index += 1) {
+    //循环拿每个字符的编码，变成字节数组
     buffer[index] = bytes.charCodeAt(index);
   }
   const extension = match[1].split('/')[1]?.replace('jpeg', 'jpg') || 'png';
