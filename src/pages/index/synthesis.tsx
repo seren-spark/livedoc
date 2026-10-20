@@ -1,94 +1,47 @@
-import UserPopover from '@/components/UserPopover';
-import { DatabaseOutlined, EyeOutlined, LikeOutlined } from '@ant-design/icons';
-import { Button, List, Row, Col, Space, Tag, Typography } from 'antd';
+import {
+  DatabaseOutlined,
+  LikeOutlined,
+  CommentOutlined,
+  StarOutlined,
+} from '@ant-design/icons';
+import { Alert, Button, Empty, List, Space, Tag, Typography } from 'antd';
 import '@/layouts/frontLayout/MyContent/index.scss';
-import MiddleContent from '@/layouts/frontLayout/MiddleContent';
-import { useNavigate } from 'react-router-dom';
-const { Text, Title } = Typography;
-const mockArticles = [
-  {
-    id: 1,
-    title: 'package.json 中 dependencies 的版本号：它真的是版本号吗？',
-    content:
-      '本文全面解析 package.json 中依赖版本号的各种写法，包含 ^、~、*、file:、workspace:、Git 地址等，揭示背后...',
-    author: 'CAD老兵',
-    time: '2天前',
-    views: '4.9k',
-    likes: 33,
-    tags: ['前端', 'JavaScript'],
-    avatar: 'https://avatars.githubusercontent.com/u/1?v=4',
-  },
-  {
-    id: 2,
-    title: '为何前端圈现在不关注源码了？',
-    content:
-      '大家好，我是想就老师，也是 wangEditor 作者。大家有没有发现一个现象：最近 1-2 年，前端圈不再关注源码了...',
-    author: '前端双越老师',
-    time: '1天前',
-    views: '4.0k',
-    likes: 41,
-    tags: ['源码', '面试', '前端框架'],
-  },
-  {
-    id: 3,
-    title: '一个 4.7 GB 视频的浏览器拖进 OOM',
-    content:
-      '你给一家在线教育平台做「课程视频播放上传」功能，需求假如是这样：讲师后台一次性拖拖 20 个 4K 视频，浏览...',
-    author: '前端微白',
-    time: '2天前',
-    views: '2.9k',
-    likes: 73,
-    tags: ['前端', 'JavaScript'],
-  },
-  {
-    id: 4,
-    title: '开源一个掘金自动签到的油猴脚本',
-    content:
-      '引言 作为一名掘金的忠实用户，我每天只开网站的第一件事就是签到，最近在写小册《油猴...',
-    author: '石小石Orz',
-    time: '3天前',
-    views: '1.4k',
-    likes: 20,
-    tags: ['前端'],
-  },
-  {
-    id: 5,
-    title: 'localStorage 你很好，我选 IndexedDB',
-    content:
-      'localStorage 你很好，我选 IndexedDB 在 Web 开发的早期，我们对 localStorage 是爱得...',
-    author: '芝士猫',
-    time: '4天前',
-    views: '1.2k',
-    likes: 12,
-    tags: ['前端', 'JavaScript', '面试'],
-  },
-  {
-    id: 5,
-    title: 'localStorage 你很好，我选 IndexedDB',
-    content:
-      'localStorage 你很好，我选 IndexedDB 在 Web 开发的早期，我们对 localStorage 是爱得...',
-    author: '芝士猫',
-    time: '4天前',
-    views: '1.2k',
-    likes: 12,
-    tags: ['前端', 'JavaScript', '面试'],
-  },
-  {
-    id: 5,
-    title: 'localStorage 你很好，我选 IndexedDB',
-    content:
-      'localStorage 你很好，我选 IndexedDB 在 Web 开发的早期，我们对 localStorage 是爱得...',
-    author: '芝士猫',
-    time: '4天前',
-    views: '1.2k',
-    likes: 12,
-    tags: ['前端', 'JavaScript', '面试'],
-  },
-];
-export default function Test() {
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { ragBaseURL, listPublicArticles } from '@/api/rag';
+import type { PublicArticle } from '@/api/articles';
+
+export default function ArticleFeed() {
   const navigate = useNavigate();
+  const [params, setParams] = useSearchParams();
+  const page = Math.max(1, Number(params.get('page')) || 1);
+  const [articles, setArticles] = useState<PublicArticle[]>([]);
+  const [total, setTotal] = useState(0);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [refresh, setRefresh] = useState(0);
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    setError('');
+    void listPublicArticles({ page, page_size: 8 })
+      .then((result) => {
+        if (!cancelled) {
+          setArticles(result.items as PublicArticle[]);
+          setTotal(result.total);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setError('文章加载失败，请稍后重试');
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [page, refresh]);
   return (
-    // <MiddleContent>
     <>
       <div
         style={{
@@ -104,10 +57,10 @@ export default function Test() {
         }}
       >
         <Space direction="vertical" size={2}>
-          <Text strong>知识库管理</Text>
-          <Text type="secondary">
-            按个人、团队、公开空间管理 RAG 可检索资料
-          </Text>
+          <Typography.Text strong>知识库管理</Typography.Text>
+          <Typography.Text type="secondary">
+            按个人和团队空间管理 RAG 可检索资料
+          </Typography.Text>
         </Space>
         <Button
           type="primary"
@@ -117,86 +70,99 @@ export default function Test() {
           进入知识库
         </Button>
       </div>
+      {error && (
+        <Alert
+          message={error}
+          type="error"
+          showIcon
+          action={
+            <Button onClick={() => setRefresh((v) => v + 1)}>重试</Button>
+          }
+        />
+      )}
       <List
-        dataSource={mockArticles}
+        loading={loading}
+        dataSource={articles}
+        pagination={{
+          current: page,
+          total,
+          pageSize: 8,
+          showSizeChanger: false,
+          hideOnSinglePage: true,
+          onChange: (next) => {
+            setParams({ page: String(next) });
+            window.scrollTo({ top: 0 });
+          },
+        }}
+        locale={{
+          emptyText: (
+            <Empty
+              image={Empty.PRESENTED_IMAGE_SIMPLE}
+              description="暂无公开文章，开始分享你的知识与想法"
+            />
+          ),
+        }}
         renderItem={(article) => (
-          <List.Item className="article-list-item">
-            <div style={{ flex: '1 1 auto' }}>
-              <Title
+          <List.Item className="article-list-item" style={{ gap: 24 }}>
+            <div style={{ flex: '1 1 auto', minWidth: 0 }}>
+              <Typography.Title
+                level={4}
                 className="article-list-item-title"
-                style={{
-                  margin: '0 0 8px 0',
-                  color: '#252933',
-                  cursor: 'pointer',
-                }}
+                style={{ margin: '0 0 8px' }}
               >
-                {article.title}
-              </Title>
-
-              <Text
+                <Link to={'/post/' + article.doc_id}>{article.title}</Link>
+              </Typography.Title>
+              <Typography.Paragraph
                 type="secondary"
-                style={{
-                  fontSize: '14px',
-                  lineHeight: '22px',
-                  display: 'block',
-                  marginBottom: '12px',
-                }}
+                ellipsis={{ rows: 2 }}
+                style={{ lineHeight: '22px', marginBottom: 12 }}
               >
-                {article.content}
-              </Text>
-
-              <Row justify="space-between" align="middle">
-                <Col>
-                  <Space size="middle">
-                    <Space size="small">
-                      {/* <Avatar size="small" src={article.avatar} /> */}
-                      <UserPopover></UserPopover>
-                    </Space>
-                    <Text type="secondary" style={{ fontSize: '13px' }}>
-                      {article.time}
-                    </Text>
-                    <Space size="small">
-                      <EyeOutlined style={{ fontSize: '12px' }} />
-                      <Text type="secondary" style={{ fontSize: '13px' }}>
-                        {article.views}
-                      </Text>
-                    </Space>
-                    <Space size="small">
-                      <LikeOutlined style={{ fontSize: '12px' }} />
-                      <Text type="secondary" style={{ fontSize: '13px' }}>
-                        {article.likes}
-                      </Text>
-                    </Space>
-                  </Space>
-                </Col>
-                <Col>
-                  <Space size="small">
-                    {article.tags?.map((tag) => (
-                      <Tag key={tag} color="blue" style={{ fontSize: '12px' }}>
-                        {tag}
-                      </Tag>
-                    ))}
-                  </Space>
-                </Col>
-              </Row>
+                {article.summary}
+              </Typography.Paragraph>
+              <Space size="middle" wrap>
+                <Typography.Text strong>{article.author_name}</Typography.Text>
+                <Typography.Text type="secondary">
+                  {new Date(
+                    article.published_at || article.created_at,
+                  ).toLocaleDateString('zh-CN')}
+                </Typography.Text>
+                {article.tags.map((tag) => (
+                  <Tag key={tag}>{tag}</Tag>
+                ))}
+                <Typography.Text type="secondary">
+                  <LikeOutlined /> {article.like_count ?? 0}
+                </Typography.Text>
+                <Typography.Text type="secondary">
+                  <CommentOutlined /> {article.comment_count ?? 0}
+                </Typography.Text>
+                <Typography.Text type="secondary">
+                  <StarOutlined /> {article.favorite_count ?? 0}
+                </Typography.Text>
+              </Space>
             </div>
-            <div
-              style={{
-                width: '140px',
-                height: '100px',
-                flexShrink: '0',
-              }}
-            >
-              <img
-                style={{ height: '100%', width: '100%' }}
-                src="https://picsum.photos/200/300"
-                alt=""
-              />
-            </div>
+            {article.cover_url && (
+              <Link
+                to={'/post/' + article.doc_id}
+                aria-label={'阅读 ' + article.title}
+                style={{ flexShrink: 0 }}
+              >
+                <img
+                  src={ragBaseURL + article.cover_url}
+                  alt=""
+                  loading="lazy"
+                  style={{
+                    width: 132,
+                    height: 88,
+                    borderRadius: 6,
+                    objectFit: 'cover',
+                    maxWidth: '25vw',
+                  }}
+                />
+              </Link>
+            )}
           </List.Item>
         )}
       />
     </>
-    // </MiddleContent>
   );
 }

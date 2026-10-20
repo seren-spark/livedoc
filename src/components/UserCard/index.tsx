@@ -1,6 +1,7 @@
 import { Avatar, Typography } from 'antd';
 import React from 'react';
 import './index.scss';
+import defaultAvatar from '@/assets/default-avatar.svg';
 const { Title } = Typography;
 interface UserCardProps {
   name?: string;
@@ -11,7 +12,7 @@ interface UserCardProps {
 export default function UserCard({
   name = '未知',
   description = '暂无描述',
-  avatar,
+  avatar = defaultAvatar,
 }: UserCardProps) {
   return (
     <div className="user-card ">

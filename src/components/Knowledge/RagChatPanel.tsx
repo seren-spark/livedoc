@@ -3,11 +3,9 @@ import { Button, Drawer, Input, Select, Tooltip, Typography } from 'antd';
 import type { Editor } from '@tiptap/react';
 import ReactMarkdown from 'react-markdown';
 import {
-  BrainCircuit,
   ChevronDown,
   FilePlus2,
   LibraryBig,
-  MessageSquareText,
   Plus,
   Send,
   Square,
@@ -19,7 +17,6 @@ import { useSelector } from 'react-redux';
 import type { RootState } from '@/store';
 import type { UserState } from '@/store/modules/userSlice';
 import CitationList from './CitationList';
-import DocumentMemoryPanel from './DocumentMemoryPanel';
 import type { AgentToolCall, Citation, RetrievalDomain } from '@/api/rag';
 import {
   useRagChatSession,
@@ -84,8 +81,6 @@ const toolSourceLabels: Record<AgentToolCall['source'], string> = {
   request_intent: '显式意图',
 };
 
-type ActiveView = 'chat' | 'memory';
-
 function useNarrowDrawer() {
   const [isNarrow, setIsNarrow] = useState(() => window.innerWidth < 768);
 
@@ -101,15 +96,11 @@ function useNarrowDrawer() {
 }
 
 function RagPanelHeader({
-  activeView,
-  title,
   username,
   isLoggedIn,
   onNewConversation,
   onClose,
 }: {
-  activeView: ActiveView;
-  title: string;
   username: string;
   isLoggedIn: boolean;
   onNewConversation: () => void;
@@ -122,62 +113,23 @@ function RagPanelHeader({
           <LibraryBig size={18} />
         </span>
         <div>
-          <strong>{activeView === 'chat' ? '知识库问答' : '文档记忆'}</strong>
-          <span>
-            {activeView === 'chat'
-              ? isLoggedIn
-                ? username
-                : '未登录'
-              : title || '未命名文档'}
-          </span>
+          <strong>知识库问答</strong>
+          <span>{isLoggedIn ? username : '未登录'}</span>
         </div>
       </div>
       <div className="rag-chat-panel__header-actions">
-        {activeView === 'chat' && (
-          <Tooltip title="新对话">
-            <Button
-              type="text"
-              icon={<Plus size={17} />}
-              onClick={onNewConversation}
-            />
-          </Tooltip>
-        )}
+        <Tooltip title="新对话">
+          <Button
+            type="text"
+            icon={<Plus size={17} />}
+            onClick={onNewConversation}
+          />
+        </Tooltip>
         <Tooltip title="关闭">
           <Button type="text" icon={<X size={17} />} onClick={onClose} />
         </Tooltip>
       </div>
     </header>
-  );
-}
-
-function RagPanelTabs({
-  activeView,
-  onChange,
-}: {
-  activeView: ActiveView;
-  onChange: (view: ActiveView) => void;
-}) {
-  return (
-    <nav className="rag-chat-panel__tabs" aria-label="AI 侧栏视图">
-      <button
-        type="button"
-        className={activeView === 'chat' ? 'is-active' : undefined}
-        aria-selected={activeView === 'chat'}
-        onClick={() => onChange('chat')}
-      >
-        <MessageSquareText size={15} />
-        对话
-      </button>
-      <button
-        type="button"
-        className={activeView === 'memory' ? 'is-active' : undefined}
-        aria-selected={activeView === 'memory'}
-        onClick={() => onChange('memory')}
-      >
-        <BrainCircuit size={15} />
-        文档记忆
-      </button>
-    </nav>
   );
 }
 
@@ -477,7 +429,6 @@ export default function RagChatPanel({
 }: RagChatPanelProps) {
   const user = useSelector((state: RootState) => state.user as UserState);
   const isNarrow = useNarrowDrawer();
-  const [activeView, setActiveView] = useState<ActiveView>('chat');
   const scrollRef = useRef<HTMLDivElement>(null);
   const {
     askQuestion,
@@ -523,47 +474,32 @@ export default function RagChatPanel({
     >
       <section className="rag-chat-panel" aria-label="AI 写作助手">
         <RagPanelHeader
-          activeView={activeView}
-          title={title}
           username={user.username}
           isLoggedIn={user.isLogin}
           onNewConversation={startNewConversation}
           onClose={onClose}
         />
-        <RagPanelTabs activeView={activeView} onChange={setActiveView} />
-
-        {activeView === 'chat' ? (
-          <>
-            <RagConversation
-              turns={renderedTurns}
-              domain={domain}
-              isGenerating={isGenerating}
-              scrollRef={scrollRef}
-              onAskQuestion={askQuestion}
-              onToggleSources={toggleSources}
-              onOpenOriginal={openOriginal}
-              onInsertAnswer={insertAnswer}
-              onRecordFeedback={recordFeedback}
-            />
-            <RagComposer
-              query={query}
-              domain={domain}
-              isLoggedIn={user.isLogin}
-              isGenerating={isGenerating}
-              onQueryChange={setQuery}
-              onDomainChange={setDomain}
-              onSend={sendCurrentQuery}
-              onStop={stopGenerating}
-            />
-          </>
-        ) : (
-          <div className="rag-chat-panel__memory">
-            <DocumentMemoryPanel
-              documentId={documentId}
-              documentVersion={documentVersion}
-            />
-          </div>
-        )}
+        <RagConversation
+          turns={renderedTurns}
+          domain={domain}
+          isGenerating={isGenerating}
+          scrollRef={scrollRef}
+          onAskQuestion={askQuestion}
+          onToggleSources={toggleSources}
+          onOpenOriginal={openOriginal}
+          onInsertAnswer={insertAnswer}
+          onRecordFeedback={recordFeedback}
+        />
+        <RagComposer
+          query={query}
+          domain={domain}
+          isLoggedIn={user.isLogin}
+          isGenerating={isGenerating}
+          onQueryChange={setQuery}
+          onDomainChange={setDomain}
+          onSend={sendCurrentQuery}
+          onStop={stopGenerating}
+        />
       </section>
     </Drawer>
   );

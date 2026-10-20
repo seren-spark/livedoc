@@ -12,11 +12,31 @@ import { ConfigProvider } from 'antd';
 import zhCN from 'antd/es/locale/zh_CN';
 import { BrowserRouter } from 'react-router-dom';
 import { RoutesProvider } from '@/router/context/routesContext.tsx';
-createRoot(document.getElementById('root')!).render(
+
+const rootElement = document.getElementById('root');
+if (!rootElement) {
+  throw new Error('Root element #root was not found');
+}
+
+createRoot(rootElement).render(
   <Provider store={store}>
     <PersistGate loading={<div>Loading...</div>} persistor={persistor}>
       <QueryClientProvider client={queryClient}>
-        <ConfigProvider locale={zhCN}>
+        <ConfigProvider
+          locale={zhCN}
+          theme={{
+            token: {
+              fontFamily:
+                "-apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Helvetica Neue', Helvetica, Arial, sans-serif",
+              fontSize: 14,
+              fontSizeSM: 12,
+              fontSizeLG: 18,
+              fontSizeXL: 22,
+              fontSizeHeading3: 24,
+              lineHeight: 1.5,
+            },
+          }}
+        >
           <BrowserRouter>
             <RoutesProvider>
               <App />

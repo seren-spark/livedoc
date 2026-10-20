@@ -3,7 +3,7 @@ import axios from 'axios';
 export const ragBaseURL =
   import.meta.env.VITE_RAG_API_BASE_URL || 'http://127.0.0.1:8001';
 
-const ragClient = axios.create({
+export const ragClient = axios.create({
   baseURL: ragBaseURL,
   timeout: 10000,
   headers: {
@@ -56,21 +56,19 @@ export interface DocumentIndexPayload {
   document_version?: number;
 }
 
-export type DocumentCreatePayload = Omit<
-  DocumentIndexPayload,
-  'doc_id' | 'space_id'
-> & {
+export interface DocumentCreatePayload
+  extends Omit<DocumentIndexPayload, 'doc_id' | 'space_id'> {
   doc_id?: string;
   index_now?: boolean;
   editor_content?: TipTapDocument | null;
   source_import_id?: string | null;
   asset_ids?: string[];
-};
+}
 
-export type TipTapDocument = {
+export interface TipTapDocument {
   type: 'doc';
-  content?: Array<Record<string, unknown>>;
-};
+  content?: Record<string, unknown>[];
+}
 
 export interface DocumentAsset {
   asset_id: string;
@@ -134,6 +132,9 @@ export interface DocumentImportRecord {
 export type DocumentRecord = Required<
   Pick<DocumentIndexPayload, 'doc_id' | 'space_id' | 'title' | 'content'>
 > & {
+  category_id?: string | null;
+  deleted_at?: string | null;
+  delete_batch_id?: string | null;
   visibility: 'private' | 'team' | 'public';
   source_type: 'article' | 'draft' | 'note' | 'team_doc' | 'public_article';
   tags: string[];
@@ -162,6 +163,7 @@ export interface Citation {
   title: string;
   content: string;
   snippet: string;
+  source_content?: string;
   source_anchor: string;
   source_type: string;
   visibility: string;
@@ -219,6 +221,8 @@ export interface AiWritePayload {
   current_context: EditorContext;
   retrieval_domain: RetrievalDomain;
   current_document?: {
+    doc_id?: string;
+    document_version?: number;
     title: string;
     content: string;
   };
@@ -376,6 +380,7 @@ export async function createKnowledgeDocument(payload: DocumentCreatePayload) {
 }
 
 export async function listKnowledgeDocuments(params?: {
+  category_id?: string;
   page?: number;
   page_size?: number;
   q?: string;
@@ -392,6 +397,25 @@ export async function listKnowledgeDocuments(params?: {
     page: number;
     page_size: number;
   };
+}
+
+export async function listPublicArticles(params?: {
+  page?: number;
+  page_size?: number;
+  q?: string;
+}) {
+  const { data } = await ragClient.get('/public/articles', { params });
+  return data as {
+    items: DocumentRecord[];
+    total: number;
+    page: number;
+    page_size: number;
+  };
+}
+
+export async function getPublicArticle(docId: string) {
+  const { data } = await ragClient.get(`/public/articles/${docId}`);
+  return data as DocumentRecord;
 }
 
 export async function getKnowledgeDocument(docId: string) {
@@ -484,20 +508,29 @@ export async function confirmDocumentImport(importId: string) {
   return data as { document: DocumentRecord; index_job: IndexJob };
 }
 
+/**
+ * 上传文档资产
+ * @param file 资产文件
+ * @param parent 可选的关联信息 import_id 表示该图片属于哪次文档导入，doc_id 表示属于哪篇文档。两者都是可选的，因为上传时文档可能还没创建
+ * @returns 资产记录
+ */
 export async function uploadDocumentAsset(
   file: File,
   parent: { import_id?: string; doc_id?: string },
 ) {
+  //创建 FormData 对象（multipart/form-data 格式），把图片文件挂到 file 字段。这是文件上传的标准方式，不能用 JSON
   const body = new FormData();
   body.append('file', file);
   if (parent.import_id) body.append('import_id', parent.import_id);
   if (parent.doc_id) body.append('doc_id', parent.doc_id);
+  //向后端 /assets 接口发 POST 请求。
   const response = await fetch(`${ragBaseURL}/assets`, {
     method: 'POST',
     headers: authHeaders(),
     body,
   });
   if (!response.ok) throw await parseFetchError(response);
+  //拿到 DocumentAsset（含 asset_id）记录
   return (await response.json()) as DocumentAsset;
 }
 
@@ -631,7 +664,13 @@ export async function streamAiWrite(
     if (eventName === 'delta') handlers.onDelta(String(data));
     if (eventName === 'done') {
       handlers.onDone(
-        data as { status: string; has_evidence: boolean; can_insert: boolean; request_id: string; trace_id: string },
+        data as {
+          status: string;
+          has_evidence: boolean;
+          can_insert: boolean;
+          request_id: string;
+          trace_id: string;
+        },
       );
     }
     if (eventName === 'error') {
@@ -666,13 +705,13 @@ export async function seedRagDemoData() {
   const { data } = await ragClient.post('/dev/seed');
   return data as {
     status: 'seeded';
-    documents: Array<{
+    documents: {
       doc_id: string;
       title: string;
       action: 'created' | 'updated' | 'unchanged';
       index_status: DocumentRecord['index_status'];
       job_id: string | null;
-    }>;
+    }[];
   };
 }
 

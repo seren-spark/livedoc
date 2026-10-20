@@ -1,4 +1,4 @@
-.tiptap {
+.post-editor-container .tiptap {
   h1,
   h2,
   h3,
@@ -16,5 +16,49 @@
   }
   a {
     color: #2269c8;
+  }
+  pre {
+    margin: 24px 0;
+    padding: 20px 24px;
+    border: 1px solid #e5e9ef;
+    border-radius: 8px;
+    background: #f6f8fa;
+    color: #24292f;
+    font-family: Consolas, Monaco, 'Courier New', monospace;
+    font-size: 14px;
+    line-height: 1.7;
+    white-space: pre;
+    overflow-wrap: normal;
+    overflow-x: auto;
+
+    code {
+      padding: 0;
+      background: transparent;
+      color: inherit;
+      font: inherit;
+    }
+    .hljs-comment,
+    .hljs-quote {
+      color: #6e7781;
+    }
+    .hljs-keyword,
+    .hljs-selector-tag {
+      color: #cf222e;
+    }
+    .hljs-title,
+    .hljs-section {
+      color: #8250df;
+    }
+    .hljs-string,
+    .hljs-regexp {
+      color: #0a3069;
+    }
+    .hljs-number,
+    .hljs-literal,
+    .hljs-built_in,
+    .hljs-type,
+    .hljs-attr {
+      color: #0550ae;
+    }
   }
 }

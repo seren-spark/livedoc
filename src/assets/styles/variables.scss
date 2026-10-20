@@ -106,6 +106,14 @@ $font-size-4xl: 36px;
 $font-size-5xl: 48px;
 $font-size-6xl: 60px;
 
+// 语义字号：页面按信息层级使用，避免组件各自散落硬编码
+$font-size-caption: $font-size-xs; // 辅助说明、徽标、表格补充信息
+$font-size-meta: 13px; // 作者、时间、状态等元信息
+$font-size-body: $font-size-sm; // 正文、表格主体、表单文字
+$font-size-list-title: 18px; // 首页文章标题、列表主标题
+$font-size-page-title: 24px; // 页面标题、模块标题
+$font-size-data: 22px; // 指标数字
+
 // 行高
 $line-height-tight: 1.25;
 $line-height-normal: 1.5;
@@ -381,6 +389,12 @@ $input-height-lg: 48px;
     --font-size-base: #{$font-size-base};
     --font-size-lg: #{$font-size-lg};
     --font-size-xl: #{$font-size-xl};
+    --font-size-caption: #{$font-size-caption};
+    --font-size-meta: #{$font-size-meta};
+    --font-size-body: #{$font-size-body};
+    --font-size-list-title: #{$font-size-list-title};
+    --font-size-page-title: #{$font-size-page-title};
+    --font-size-data: #{$font-size-data};
 
     // 间距
     --spacing-1: #{$spacing-1};

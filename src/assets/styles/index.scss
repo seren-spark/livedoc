@@ -1,5 +1,6 @@
 :root {
   font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
+  font-size: var(--font-size-body);
   line-height: 1.5;
   font-weight: 400;
 
@@ -14,6 +15,7 @@
 }
 body {
   background-color: $bg-secondary;
+  font-size: var(--font-size-body);
 }
 * {
   margin: 0;
@@ -28,7 +30,7 @@ a:hover {
 }
 
 h1 {
-  font-size: 3.2em;
+  font-size: var(--font-size-page-title);
   line-height: 1.1;
 }
 ul {
@@ -38,7 +40,7 @@ button {
   border-radius: 8px;
   border: 1px solid transparent;
   padding: 0.6em 1.2em;
-  font-size: 1em;
+  font-size: var(--font-size-body);
   font-weight: 500;
   font-family: inherit;
   background-color: #1a1a1a;

@@ -3,6 +3,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Badge,
   Button,
+  Descriptions,
+  Dropdown,
   Empty,
   Input,
   Modal,
@@ -19,14 +21,13 @@ import type { ColumnsType } from 'antd/es/table';
 import {
   DeleteOutlined,
   DatabaseOutlined,
-  EditOutlined,
   FileAddOutlined,
   FolderOpenOutlined,
-  GlobalOutlined,
   HeartOutlined,
   HistoryOutlined,
   InboxOutlined,
   LockOutlined,
+  MoreOutlined,
   ReloadOutlined,
   RetweetOutlined,
   SearchOutlined,
@@ -49,15 +50,13 @@ import {
 } from '@/api/rag';
 import { useAuth } from '@/contexts/authContext';
 import './index.scss';
+import WorkspaceNavigation from '@/components/Knowledge/WorkspaceNavigation';
+import { getCategoryTree, categoryMutation } from '@/api/workspace';
+import { agentCapabilities } from '@/api/document-agent';
 
 const { Text, Title } = Typography;
 
-type SpaceKey =
-  | 'private'
-  | 'public'
-  | 'recent'
-  | 'favorite'
-  | `team:${string}`;
+type SpaceKey = 'private' | 'recent' | 'favorite' | `team:${string}`;
 
 const statusColor: Record<DocumentRecord['index_status'], string> = {
   pending: 'default',
@@ -73,6 +72,14 @@ const statusLabel: Record<DocumentRecord['index_status'], string> = {
   indexing: '索引中',
   ready: '已就绪',
   failed: '失败',
+};
+
+const statusHint: Record<DocumentRecord['index_status'], string> = {
+  pending: '文档已保存，建立索引后可用于知识库问答。',
+  queued: '正在等待处理，完成后即可用于知识库问答。',
+  indexing: '正在处理文档内容，请稍候。',
+  ready: '文档可用于知识库搜索和问答。',
+  failed: '处理未完成，可在详情中查看原因并重建索引。',
 };
 
 const visibilityColor: Record<DocumentRecord['visibility'], string> = {
@@ -121,7 +128,6 @@ function getFolderName(record: DocumentRecord) {
 
 function matchesSpace(record: DocumentRecord, spaceKey: SpaceKey) {
   if (spaceKey === 'private') return record.visibility === 'private';
-  if (spaceKey === 'public') return record.visibility === 'public';
   if (spaceKey === 'recent') return true;
   if (spaceKey === 'favorite') {
     return record.tags?.some((tag) =>
@@ -136,7 +142,6 @@ function matchesSpace(record: DocumentRecord, spaceKey: SpaceKey) {
 
 function spaceTitle(spaceKey: SpaceKey) {
   if (spaceKey === 'private') return '我的知识库';
-  if (spaceKey === 'public') return '公共知识库';
   if (spaceKey === 'recent') return '最近文档';
   if (spaceKey === 'favorite') return '收藏文档';
   return spaceKey.slice(5);
@@ -151,8 +156,11 @@ export default function KnowledgePage() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
   const [loading, setLoading] = useState(false);
-  const [activeImport, setActiveImport] =
-    useState<DocumentImportRecord | null>(null);
+  const [detailDocId, setDetailDocId] = useState<string | null>(null);
+  const detailDocument = docs.find((doc) => doc.doc_id === detailDocId);
+  const [activeImport, setActiveImport] = useState<DocumentImportRecord | null>(
+    null,
+  );
   const [importing, setImporting] = useState(false);
   const [seeding, setSeeding] = useState(false);
   const [metrics, setMetrics] = useState<RagMetrics | null>(null);
@@ -161,12 +169,28 @@ export default function KnowledgePage() {
   );
   const [selectedSpace, setSelectedSpace] = useState<SpaceKey>('private');
   const [selectedFolder, setSelectedFolder] = useState('全部文档');
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [workspaceEnabled, setWorkspaceEnabled] = useState(false);
+  useEffect(() => {
+    let live = true;
+    if (isLoggedIn)
+      void agentCapabilities()
+        .then((c) => {
+          if (live) setWorkspaceEnabled(c.workspace_enabled);
+        })
+        .catch(() => {
+          if (live) setWorkspaceEnabled(false);
+        });
+    return () => {
+      live = false;
+    };
+  }, [isLoggedIn]);
   const [keyword, setKeyword] = useState('');
   const [statusFilter, setStatusFilter] = useState<
     DocumentRecord['index_status'] | 'all'
   >('all');
   const [visibilityFilter, setVisibilityFilter] = useState<
-    DocumentRecord['visibility'] | 'all'
+    Extract<DocumentRecord['visibility'], 'private' | 'team'> | 'all'
   >('all');
 
   const loadDocs = async (options: { background?: boolean } = {}) => {
@@ -187,13 +211,19 @@ export default function KnowledgePage() {
             ? visibilityFilter
             : selectedSpace === 'private'
               ? 'private'
-              : selectedSpace === 'public'
-                ? 'public'
-                : isTeamSpace
-                  ? 'team'
-                  : undefined,
+              : isTeamSpace
+                ? 'team'
+                : undefined,
         team_id: isTeamSpace ? selectedSpace.slice(5) : undefined,
-        tag: selectedFolder !== '全部文档' ? selectedFolder : undefined,
+        tag:
+          (selectedSpace !== 'private' || !workspaceEnabled) &&
+          selectedFolder !== '全部文档'
+            ? selectedFolder
+            : undefined,
+        category_id:
+          selectedSpace === 'private' && workspaceEnabled
+            ? (selectedCategory ?? undefined)
+            : undefined,
         index_status: statusFilter !== 'all' ? statusFilter : undefined,
       });
       setDocs(data.items);
@@ -227,7 +257,18 @@ export default function KnowledgePage() {
   useEffect(() => {
     const timer = window.setTimeout(() => void loadDocs(), 250);
     return () => window.clearTimeout(timer);
-  }, [isLoggedIn, page, pageSize, keyword, selectedFolder, selectedSpace, statusFilter, visibilityFilter]);
+  }, [
+    isLoggedIn,
+    page,
+    pageSize,
+    keyword,
+    selectedFolder,
+    selectedCategory,
+    workspaceEnabled,
+    selectedSpace,
+    statusFilter,
+    visibilityFilter,
+  ]);
 
   useEffect(() => {
     if (!isLoggedIn) {
@@ -286,10 +327,7 @@ export default function KnowledgePage() {
   );
 
   useEffect(() => {
-    if (
-      !isLoggedIn ||
-      !hasActiveIndexJobs
-    ) {
+    if (!isLoggedIn || !hasActiveIndexJobs) {
       return;
     }
     let cancelled = false;
@@ -301,10 +339,9 @@ export default function KnowledgePage() {
         timer = window.setTimeout(poll, 5000);
         return;
       }
-      await Promise.all([
-        loadDocs({ background: true }),
-        loadMetrics(),
-      ]).catch(console.error);
+      await Promise.all([loadDocs({ background: true }), loadMetrics()]).catch(
+        console.error,
+      );
       attempt += 1;
       timer = window.setTimeout(poll, Math.min(10_000, 2000 * 1.4 ** attempt));
     };
@@ -338,26 +375,33 @@ export default function KnowledgePage() {
     setPage(1);
   }, [keyword, selectedFolder, statusFilter, visibilityFilter]);
 
+  const personalDocs = useMemo(
+    () => docs.filter((doc) => doc.visibility !== 'public'),
+    [docs],
+  );
+
   const teams = useMemo(() => {
     const ids = Array.from(
       new Set(
-        docs
+        personalDocs
           .filter((doc) => doc.visibility === 'team' && doc.team_id)
           .map((doc) => doc.team_id as string),
       ),
     );
     return ids.sort();
-  }, [docs]);
+  }, [personalDocs]);
 
   const spaceDocs = useMemo(() => {
-    const scoped = docs.filter((doc) => matchesSpace(doc, selectedSpace));
+    const scoped = personalDocs.filter((doc) =>
+      matchesSpace(doc, selectedSpace),
+    );
     if (selectedSpace === 'recent') {
       return [...scoped]
         .sort((a, b) => b.updated_at.localeCompare(a.updated_at))
         .slice(0, 30);
     }
     return scoped;
-  }, [docs, selectedSpace]);
+  }, [personalDocs, selectedSpace]);
 
   const folders = useMemo(() => {
     const names = Array.from(new Set(spaceDocs.map(getFolderName))).sort();
@@ -367,7 +411,13 @@ export default function KnowledgePage() {
   const tableDocs = useMemo(() => {
     return spaceDocs.filter((doc) => {
       const folderOk =
-        selectedFolder === '全部文档' || getFolderName(doc) === selectedFolder;
+        selectedSpace === 'private' && workspaceEnabled
+          ? !selectedCategory ||
+            (selectedCategory === '__uncategorized__'
+              ? !doc.category_id
+              : doc.category_id === selectedCategory)
+          : selectedFolder === '全部文档' ||
+            getFolderName(doc) === selectedFolder;
       const statusOk =
         statusFilter === 'all' || doc.index_status === statusFilter;
       const visibilityOk =
@@ -388,16 +438,26 @@ export default function KnowledgePage() {
           .includes(keyword.trim().toLowerCase());
       return folderOk && statusOk && visibilityOk && keywordOk;
     });
-  }, [keyword, selectedFolder, spaceDocs, statusFilter, visibilityFilter]);
+  }, [
+    keyword,
+    selectedFolder,
+    selectedCategory,
+    selectedSpace,
+    workspaceEnabled,
+    spaceDocs,
+    statusFilter,
+    visibilityFilter,
+  ]);
 
   const counts = useMemo(
     () => ({
-      private: docs.filter((doc) => doc.visibility === 'private').length,
-      public: docs.filter((doc) => doc.visibility === 'public').length,
-      favorite: docs.filter((doc) => matchesSpace(doc, 'favorite')).length,
+      private: personalDocs.filter((doc) => doc.visibility === 'private')
+        .length,
+      favorite: personalDocs.filter((doc) => matchesSpace(doc, 'favorite'))
+        .length,
       ready: tableDocs.filter((doc) => doc.index_status === 'ready').length,
     }),
-    [docs, tableDocs],
+    [personalDocs, tableDocs],
   );
 
   const currentTarget = () => {
@@ -405,13 +465,9 @@ export default function KnowledgePage() {
     const folderTag = !systemFolders.has(selectedFolder)
       ? [selectedFolder]
       : [];
-    const visibility = isTeamSpace
-        ? 'team'
-        : selectedSpace === 'public'
-          ? 'public'
-          : 'private';
+    const visibility = isTeamSpace ? 'team' : 'private';
     return {
-      visibility: visibility as 'private' | 'team' | 'public',
+      visibility: visibility as 'private' | 'team',
       team_id: isTeamSpace ? selectedSpace.slice(5) : '',
       tags: folderTag,
       folder: folderTag[0] || '',
@@ -427,6 +483,12 @@ export default function KnowledgePage() {
     });
     if (target.team_id) params.set('team', target.team_id);
     if (target.folder) params.set('folder', target.folder);
+    if (
+      selectedSpace === 'private' &&
+      selectedCategory &&
+      selectedCategory !== '__uncategorized__'
+    )
+      params.set('categoryId', selectedCategory);
     navigate(`/editor/draft?${params.toString()}`);
   };
 
@@ -469,7 +531,7 @@ export default function KnowledgePage() {
     Modal.confirm({
       title: '生成真实 RAG 演示数据',
       content:
-        '将为当前账号创建或还原公开、个人和所属团队的演示文档，并进入真实 BGE + Qdrant 索引队列。不会创建其他用户或其他团队的资料。',
+        '将为当前账号创建或还原个人和所属团队的演示文档；公共文章会写入全站文章池，但不会出现在普通知识库管理页。',
       okText: '生成并建立索引',
       cancelText: '取消',
       onOk: async () => {
@@ -487,7 +549,9 @@ export default function KnowledgePage() {
           await loadDocs();
         } catch (error) {
           console.error(error);
-          message.error('生成演示数据失败，请检查 API 与索引 worker 是否已启动');
+          message.error(
+            '生成演示数据失败，请检查 API 与索引 worker 是否已启动',
+          );
           throw error;
         } finally {
           setSeeding(false);
@@ -522,30 +586,66 @@ export default function KnowledgePage() {
     }
   };
 
+  const moveToCategory = async (record: DocumentRecord) => {
+    try {
+      const tree = await getCategoryTree();
+      let categoryId = record.category_id ?? null;
+      Modal.confirm({
+        title: '移动文档到分类',
+        content: (
+          <Select
+            aria-label="目标分类"
+            style={{ width: '100%' }}
+            defaultValue={categoryId ?? '__uncategorized__'}
+            options={[
+              { value: '__uncategorized__', label: '未分类' },
+              ...tree.items.map((category) => ({
+                value: category.category_id,
+                label: category.name,
+              })),
+            ]}
+            onChange={(value) => {
+              categoryId = value === '__uncategorized__' ? null : value;
+            }}
+          />
+        ),
+        okText: '移动',
+        cancelText: '取消',
+        onOk: async () => {
+          await categoryMutation('/assign', {
+            ids: [record.doc_id],
+            category_id: categoryId,
+            expected_tree_revision: tree.revision,
+          });
+          await loadDocs();
+        },
+      });
+    } catch {
+      message.error('分类加载失败');
+    }
+  };
+
   const columns: ColumnsType<DocumentRecord> = [
     {
       title: '文档名',
       dataIndex: 'title',
       render: (_, record) => (
-        <Space direction="vertical" size={3} className="knowledge-doc-cell">
-          <Text strong ellipsis={{ tooltip: record.title }}>
-            {record.title}
-          </Text>
-          <Text type="secondary" ellipsis={{ tooltip: record.doc_id }}>
-            {record.doc_id}
-          </Text>
-        </Space>
+        <button
+          type="button"
+          className="knowledge-doc-title"
+          onClick={() => openEdit(record)}
+          title={record.title}
+        >
+          {record.title}
+        </button>
       ),
     },
     {
       title: '权限',
       dataIndex: 'visibility',
       width: 118,
-      render: (value: DocumentRecord['visibility'], record) => (
-        <Space direction="vertical" size={3}>
-          <Tag color={visibilityColor[value]}>{visibilityLabel[value]}</Tag>
-          {record.team_id && <Text type="secondary">{record.team_id}</Text>}
-        </Space>
+      render: (value: DocumentRecord['visibility']) => (
+        <Tag color={visibilityColor[value]}>{visibilityLabel[value]}</Tag>
       ),
     },
     {
@@ -554,28 +654,14 @@ export default function KnowledgePage() {
       render: (_, record) => <Text>{getFolderName(record)}</Text>,
     },
     {
-      title: '作者',
-      width: 150,
-      render: (_, record) => (
-        <Text type="secondary">{record.owner_id || '系统资料'}</Text>
-      ),
-    },
-    {
       title: '索引状态',
-      width: 140,
+      width: 110,
       render: (_, record) => (
-        <Space direction="vertical" size={3}>
+        <Tooltip title={statusHint[record.index_status]}>
           <Tag color={statusColor[record.index_status]}>
             {statusLabel[record.index_status]}
           </Tag>
-          <Text type="secondary">{record.chunk_count} chunks</Text>
-          {record.active_index_version && (
-            <Text type="secondary">
-              serving v{record.active_index_version} / content v
-              {record.document_version}
-            </Text>
-          )}
-        </Space>
+        </Tooltip>
       ),
     },
     {
@@ -588,32 +674,63 @@ export default function KnowledgePage() {
     },
     {
       title: '操作',
-      width: 170,
+      width: 180,
+      fixed: 'right',
       render: (_, record) => (
-        <Space size={4}>
-          <Tooltip title="编辑">
+        <Space size={4} className="knowledge-row-actions">
+          <Button type="link" size="small" onClick={() => openEdit(record)}>
+            编辑
+          </Button>
+          <Dropdown
+            trigger={['click']}
+            menu={{
+              items: [
+                ...(record.visibility === 'private' && workspaceEnabled
+                  ? [
+                      {
+                        key: 'move',
+                        label: '移动到分类',
+                        icon: <FolderOpenOutlined />,
+                      },
+                    ]
+                  : []),
+                {
+                  key: 'reindex',
+                  label: '重建索引',
+                  icon: <RetweetOutlined />,
+                  disabled: ['queued', 'indexing'].includes(
+                    record.index_status,
+                  ),
+                },
+                { type: 'divider' },
+                {
+                  key: 'delete',
+                  label: '删除文档',
+                  icon: <DeleteOutlined />,
+                  danger: true,
+                },
+              ],
+              onClick: ({ key }) => {
+                if (key === 'move') void moveToCategory(record);
+                if (key === 'reindex') void reindex(record);
+                if (key === 'delete') remove(record);
+              },
+            }}
+          >
             <Button
+              type="text"
               size="small"
-              icon={<EditOutlined />}
-              onClick={() => openEdit(record)}
+              aria-label={`更多操作：${record.title}`}
+              icon={<MoreOutlined />}
             />
-          </Tooltip>
-          <Tooltip title="重建索引">
-            <Button
-              size="small"
-              icon={<RetweetOutlined />}
-              disabled={['queued', 'indexing'].includes(record.index_status)}
-              onClick={() => reindex(record)}
-            />
-          </Tooltip>
-          <Tooltip title="删除">
-            <Button
-              size="small"
-              danger
-              icon={<DeleteOutlined />}
-              onClick={() => remove(record)}
-            />
-          </Tooltip>
+          </Dropdown>
+          <Button
+            type="link"
+            size="small"
+            onClick={() => setDetailDocId(record.doc_id)}
+          >
+            详情
+          </Button>
         </Space>
       ),
     },
@@ -623,12 +740,12 @@ export default function KnowledgePage() {
     return Object.fromEntries(
       teams.map((teamId) => [
         teamId,
-        docs.filter(
+        personalDocs.filter(
           (doc) => doc.visibility === 'team' && doc.team_id === teamId,
         ).length,
       ]),
     );
-  }, [docs, teams]);
+  }, [personalDocs, teams]);
 
   const renderNavItem = (
     key: SpaceKey,
@@ -639,6 +756,7 @@ export default function KnowledgePage() {
     <button
       key={key}
       type="button"
+      aria-current={selectedSpace === key ? 'page' : undefined}
       className={
         selectedSpace === key
           ? 'knowledge-nav-item is-active'
@@ -653,10 +771,15 @@ export default function KnowledgePage() {
       <Badge
         count={count}
         showZero
-        color={selectedSpace === key ? '#0f766e' : '#9ca3af'}
+        color={selectedSpace === key ? '#1e80ff' : '#a8b1bd'}
       />
     </button>
   );
+
+  const tableTotal =
+    selectedSpace === 'recent' || selectedSpace === 'favorite'
+      ? tableDocs.length
+      : total;
 
   return (
     <div className="knowledge-page">
@@ -668,6 +791,22 @@ export default function KnowledgePage() {
             <span>空间 / 目录 / 文档</span>
           </div>
         </div>
+        {selectedSpace === 'private' && isLoggedIn && workspaceEnabled && (
+          <WorkspaceNavigation
+            selected={selectedCategory}
+            onSelect={(id) => {
+              setSelectedCategory(id);
+              setPage(1);
+            }}
+            onChanged={() => void loadDocs()}
+            refreshKey={docs
+              .map(
+                (d) =>
+                  `${d.doc_id}:${d.document_version}:${d.category_id ?? ''}`,
+              )
+              .join(',')}
+          />
+        )}
 
         <div className="knowledge-nav-group">
           <Text type="secondary">一级空间</Text>
@@ -692,12 +831,6 @@ export default function KnowledgePage() {
               teamCounts[teamId] || 0,
             ),
           )}
-          {renderNavItem(
-            'public',
-            <GlobalOutlined />,
-            '公共知识库',
-            counts.public,
-          )}
         </div>
 
         <div className="knowledge-nav-group">
@@ -706,7 +839,7 @@ export default function KnowledgePage() {
             'recent',
             <HistoryOutlined />,
             '最近文档',
-            Math.min(docs.length, 30),
+            Math.min(personalDocs.length, 30),
           )}
           {renderNavItem(
             'favorite',
@@ -723,7 +856,7 @@ export default function KnowledgePage() {
             <Text type="secondary">当前空间</Text>
             <Title level={3}>{spaceTitle(selectedSpace)}</Title>
           </div>
-          <Space>
+          <Space className="knowledge-header__actions" wrap size={[8, 8]}>
             {!isLoggedIn && (
               <Button onClick={showLoginModal} type="primary">
                 登录演示账号
@@ -807,7 +940,11 @@ export default function KnowledgePage() {
               </Text>
               <Space>
                 {['failed', 'retry_wait'].includes(activeImport.status) && (
-                  <Button size="small" onClick={retryImport} loading={importing}>
+                  <Button
+                    size="small"
+                    onClick={retryImport}
+                    loading={importing}
+                  >
                     重试解析
                   </Button>
                 )}
@@ -884,24 +1021,26 @@ export default function KnowledgePage() {
           </section>
         )}
 
-        <nav className="knowledge-folder-tabs" aria-label="知识库目录">
-          {folders.map((folder) => (
-            <button
-              type="button"
-              key={folder}
-              className={selectedFolder === folder ? 'is-active' : undefined}
-              onClick={() => setSelectedFolder(folder)}
-            >
-              {folder}
-              <span>
-                {folder === '全部文档'
-                  ? spaceDocs.length
-                  : spaceDocs.filter((doc) => getFolderName(doc) === folder)
-                      .length}
-              </span>
-            </button>
-          ))}
-        </nav>
+        {(selectedSpace !== 'private' || !workspaceEnabled) && (
+          <nav className="knowledge-folder-tabs" aria-label="知识库目录">
+            {folders.map((folder) => (
+              <button
+                type="button"
+                key={folder}
+                className={selectedFolder === folder ? 'is-active' : undefined}
+                onClick={() => setSelectedFolder(folder)}
+              >
+                {folder}
+                <span>
+                  {folder === '全部文档'
+                    ? spaceDocs.length
+                    : spaceDocs.filter((doc) => getFolderName(doc) === folder)
+                        .length}
+                </span>
+              </button>
+            ))}
+          </nav>
+        )}
 
         <section className="knowledge-toolbar">
           <Input
@@ -918,7 +1057,6 @@ export default function KnowledgePage() {
               { label: '全部权限', value: 'all' },
               { label: '个人私有', value: 'private' },
               { label: '团队共享', value: 'team' },
-              { label: '公开', value: 'public' },
             ]}
           />
           <Select
@@ -933,14 +1071,14 @@ export default function KnowledgePage() {
               { label: '失败', value: 'failed' },
             ]}
           />
-          <Tag color="processing">Ready {counts.ready}</Tag>
+          <Tag color="processing">已就绪 {counts.ready}</Tag>
         </section>
 
         <section className="knowledge-table-shell">
           {!isLoggedIn ? (
             <Empty
               image={Empty.PRESENTED_IMAGE_SIMPLE}
-              description="登录后查看个人、团队和公开知识库"
+              description="登录后查看个人和团队知识库"
             >
               <Button type="primary" onClick={showLoginModal}>
                 登录演示账号
@@ -952,10 +1090,11 @@ export default function KnowledgePage() {
               loading={loading}
               columns={columns}
               dataSource={tableDocs}
+              scroll={{ x: 880 }}
               pagination={{
                 current: page,
                 pageSize,
-                total,
+                total: tableTotal,
                 showSizeChanger: true,
                 showTotal: (total) => `共 ${total} 篇文档`,
                 onChange: (nextPage, nextPageSize) => {
@@ -968,7 +1107,95 @@ export default function KnowledgePage() {
           )}
         </section>
       </main>
-
+      <Modal
+        open={Boolean(detailDocument)}
+        title="文档详情"
+        onCancel={() => setDetailDocId(null)}
+        destroyOnHidden
+        footer={<Button onClick={() => setDetailDocId(null)}>关闭</Button>}
+        width={680}
+        className="knowledge-detail-modal"
+        styles={{ body: { maxHeight: '65vh', overflowY: 'auto' } }}
+      >
+        {detailDocument && (
+          <>
+            <Title level={5}>{detailDocument.title}</Title>
+            <Descriptions bordered size="small" column={1}>
+              <Descriptions.Item label="文档类型">
+                {sourceTypeLabel[detailDocument.source_type]}
+              </Descriptions.Item>
+              <Descriptions.Item label="访问权限">
+                {visibilityLabel[detailDocument.visibility]}
+              </Descriptions.Item>
+              <Descriptions.Item label="索引状态">
+                <Tag color={statusColor[detailDocument.index_status]}>
+                  {statusLabel[detailDocument.index_status]}
+                </Tag>
+              </Descriptions.Item>
+              <Descriptions.Item label="创建时间">
+                {formatTime(detailDocument.created_at)}
+              </Descriptions.Item>
+              <Descriptions.Item label="更新时间">
+                {formatTime(detailDocument.updated_at)}
+              </Descriptions.Item>
+            </Descriptions>
+            <Title level={5}>技术信息</Title>
+            <Descriptions bordered size="small" column={1}>
+              {[
+                ['文档 ID', detailDocument.doc_id],
+                ['空间 ID', detailDocument.space_id],
+                ['所有者 ID', detailDocument.owner_id],
+                ['团队 ID', detailDocument.team_id],
+                ['分类 ID', detailDocument.category_id],
+                ['导入 ID', detailDocument.source_import_id],
+                ['索引任务 ID', detailDocument.latest_index_job_id],
+              ]
+                .filter(([, value]) => value)
+                .map(([label, value]) => (
+                  <Descriptions.Item key={label} label={label}>
+                    <Text copyable className="knowledge-detail-value">
+                      {value}
+                    </Text>
+                  </Descriptions.Item>
+                ))}
+              <Descriptions.Item label="分片数量">
+                {detailDocument.chunk_count}
+              </Descriptions.Item>
+              <Descriptions.Item label="文档版本">
+                {detailDocument.document_version}
+              </Descriptions.Item>
+              <Descriptions.Item label="生效索引版本">
+                {detailDocument.active_index_version ?? '尚未建立索引'}
+              </Descriptions.Item>
+              <Descriptions.Item label="索引完成时间">
+                {formatTime(detailDocument.indexed_at)}
+              </Descriptions.Item>
+              {detailDocument.index_error && (
+                <Descriptions.Item label="失败原因">
+                  <Text type="danger">{detailDocument.index_error}</Text>
+                </Descriptions.Item>
+              )}
+            </Descriptions>
+            {detailDocument.assets?.map((asset) => (
+              <div key={asset.asset_id}>
+                <Title level={5}>附件 · {asset.filename}</Title>
+                <Descriptions bordered size="small" column={1}>
+                  <Descriptions.Item label="附件 ID">
+                    <Text copyable className="knowledge-detail-value">
+                      {asset.asset_id}
+                    </Text>
+                  </Descriptions.Item>
+                  <Descriptions.Item label="SHA-256">
+                    <Text copyable className="knowledge-detail-value">
+                      {asset.sha256}
+                    </Text>
+                  </Descriptions.Item>
+                </Descriptions>
+              </div>
+            ))}
+          </>
+        )}
+      </Modal>
     </div>
   );
 }

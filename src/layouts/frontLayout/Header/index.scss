@@ -16,12 +16,24 @@
   .header-container {
     margin: auto;
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+
+    .ant-menu-horizontal {
+      min-width: 0;
+      border-bottom: 0;
+      font-size: var(--font-size-body);
+      line-height: 64px;
+    }
+
+    .ant-menu-horizontal > .ant-menu-item {
+      padding-inline: 16px;
+    }
+
     .user-dropdown {
       padding: 12px;
     }
   }
   .logo {
-    width: 160px;
+    width: 150px;
     img {
       width: 100%;
       height: 100%;
@@ -31,7 +43,21 @@
     display: block;
     flex: 1;
     min-width: 120px;
-    max-width: 300px;
+    max-width: 260px;
+  }
+
+  .ant-btn,
+  .ant-input {
+    font-size: var(--font-size-body);
+  }
+
+  .ant-dropdown-button {
+    flex: 0 0 auto;
+  }
+
+  .header-bell {
+    color: #8a919f;
+    font-size: var(--font-size-xl);
   }
   &.hide {
     transform: translateY(-100%);

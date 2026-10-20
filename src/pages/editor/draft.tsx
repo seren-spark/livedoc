@@ -1,5 +1,14 @@
 import { useRef, useState, useEffect, useCallback, Suspense } from 'react';
-import { Layout, Button, Avatar, Space, Input, Dropdown, message } from 'antd';
+import {
+  Layout,
+  Button,
+  Avatar,
+  Space,
+  Input,
+  Dropdown,
+  message,
+  Alert,
+} from 'antd';
 import {
   MenuOutlined,
   ExperimentOutlined,
@@ -24,9 +33,12 @@ import {
   generateLargeDocument,
 } from '@/utils/generateTestDocument';
 import marked from '@/utils/marked';
-import RagChatPanel from '@/components/Knowledge/RagChatPanel';
+import DocumentAgentPanel from '@/components/Knowledge/DocumentAgentPanel';
+import type { DocumentIdentity } from '@/api/document-agent.types';
 import { useAuth } from '@/contexts/authContext';
 import { useKnowledgeDocumentSession } from '@/hooks/useKnowledgeDocumentSession';
+import { useArticleSession } from '@/hooks/useArticleSession';
+import ArticlePublishPanel from '@/components/ArticlePublishPanel';
 
 const AISuggestionPreview = React.lazy(
   () => import('@/components/AISuggestionPreview'),
@@ -38,9 +50,38 @@ const TiptapEditor = () => {
   const { requireAuth } = useAuth();
   const items = useSelector((state: any) => state.toc.tocItems);
   const [collapsed, setCollapsed] = useState(false);
+  //组件挂载后立即调用
   const knowledgeSession = useKnowledgeDocumentSession(editor);
-  const { title, setTitle } = knowledgeSession;
+  const articleSession = useArticleSession(
+    editor,
+    !knowledgeSession.isKnowledgeMode,
+  );
+  const title = knowledgeSession.isKnowledgeMode
+    ? knowledgeSession.title
+    : articleSession.draft.title;
+  const setTitle = knowledgeSession.isKnowledgeMode
+    ? knowledgeSession.setTitle
+    : (value: string) => articleSession.change({ title: value });
+  const [publishOpen, setPublishOpen] = useState(false);
   const [ragChatOpen, setRagChatOpen] = useState(false);
+  const agentLocalId = useRef(crypto.randomUUID());
+  const agentIdentity: DocumentIdentity = knowledgeSession.isKnowledgeMode
+    ? knowledgeSession.documentRecord
+      ? {
+          kind: 'knowledge',
+          doc_id: knowledgeSession.documentRecord.doc_id,
+          persisted_version: knowledgeSession.documentRecord.document_version,
+        }
+      : knowledgeSession.importRecord
+        ? { kind: 'import', import_id: knowledgeSession.importRecord.import_id }
+        : { kind: 'unsaved', local_id: `knowledge:${agentLocalId.current}` }
+    : articleSession.record
+      ? {
+          kind: 'article',
+          article_id: articleSession.record.article_id,
+          draft_version: articleSession.record.draft_version,
+        }
+      : { kind: 'unsaved', local_id: `article:${agentLocalId.current}` };
   const [isLinkBubbleVisible, setIsLinkBubbleVisible] = useState(false);
   const [showPerformanceMonitor, setShowPerformanceMonitor] = useState(false);
   const editorContainerRef = useRef<HTMLDivElement>(null);
@@ -158,36 +199,37 @@ const TiptapEditor = () => {
           height: 'auto',
         }}
       >
-        <div
-          style={{
-            padding: '0 24px',
-            height: '64px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            borderBottom: '1px solid #f0f0f0',
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center' }}>
+        <div className="editor-header-row">
+          <div className="editor-header-title">
             <Button
               type="text"
               icon={<MenuOutlined />}
               onClick={() => setCollapsed(!collapsed)}
               style={{ marginRight: 16 }}
             />
-            <span style={{ fontSize: '16px', fontWeight: 500 }}>
-              <Input
-                className="title-input"
-                variant="borderless"
-                maxLength={knowledgeSession.isKnowledgeMode ? 120 : 20}
-                placeholder=" 输入文章标题"
-                value={title}
-                onChange={(event) => setTitle(event.target.value)}
-              />
-            </span>
+            <Input.TextArea
+              className="title-input"
+              aria-label="文档标题"
+              variant="borderless"
+              autoSize={{ minRows: 1 }}
+              maxLength={120}
+              disabled={
+                !knowledgeSession.isKnowledgeMode &&
+                articleSession.saveState === 'loading'
+              }
+              placeholder=" 输入文章标题"
+              value={title}
+              onChange={(event) =>
+                setTitle(event.target.value.replace(/[\r\n]+/g, ' '))
+              }
+              onKeyDown={(event) => {
+                if (event.key === 'Enter' && !event.nativeEvent.isComposing)
+                  event.preventDefault();
+              }}
+            />
           </div>
 
-          <Space>
+          <Space className="editor-header-actions" wrap>
             {/* 🔥 测试文档加载按钮 */}
             <Dropdown
               popupRender={() => (
@@ -286,16 +328,38 @@ const TiptapEditor = () => {
 
             <Button
               type="text"
-              loading={knowledgeSession.saveState === 'saving'}
-              danger={knowledgeSession.saveState === 'error'}
+              loading={
+                (knowledgeSession.isKnowledgeMode
+                  ? knowledgeSession.saveState
+                  : articleSession.saveState) === 'saving'
+              }
+              danger={
+                (knowledgeSession.isKnowledgeMode
+                  ? knowledgeSession.saveState
+                  : articleSession.saveState) === 'error'
+              }
             >
-              {knowledgeSession.statusText}
+              {knowledgeSession.isKnowledgeMode
+                ? knowledgeSession.statusText
+                : articleSession.statusText}
             </Button>
+            {!knowledgeSession.isKnowledgeMode && (
+              <Button
+                onClick={articleSession.requestSave}
+                disabled={articleSession.saveState === 'loading'}
+                loading={articleSession.saveState === 'saving'}
+              >
+                保存草稿
+              </Button>
+            )}
             <Button
               type="primary"
               ghost
               onClick={() => {
-                if (!knowledgeSession.isKnowledgeMode) return;
+                if (!knowledgeSession.isKnowledgeMode) {
+                  articleSession.leave();
+                  return;
+                }
                 if (knowledgeSession.importRecord) {
                   void knowledgeSession.saveDraft();
                 } else {
@@ -314,17 +378,27 @@ const TiptapEditor = () => {
               onClick={() => {
                 if (knowledgeSession.isKnowledgeMode) {
                   void knowledgeSession.saveToKnowledge();
-                }
+                } else requireAuth(() => setPublishOpen(true));
               }}
-              loading={knowledgeSession.saveState === 'saving'}
+              loading={
+                (knowledgeSession.isKnowledgeMode
+                  ? knowledgeSession.saveState
+                  : articleSession.saveState) === 'saving'
+              }
+              disabled={
+                !knowledgeSession.isKnowledgeMode &&
+                articleSession.saveState === 'loading'
+              }
             >
               {knowledgeSession.isKnowledgeMode
                 ? knowledgeSession.importRecord
                   ? '确认入库'
                   : knowledgeSession.documentRecord
-                    ? '保存并索引'
+                    ? '保存文档'
                     : '保存到知识库'
-                : '发布'}
+                : articleSession.record?.state === 'published'
+                  ? '更新发布'
+                  : '发布'}
             </Button>
             <Avatar
               size="small"
@@ -383,6 +457,14 @@ const TiptapEditor = () => {
             //   overflowY: 'auto',
             // }}
           >
+            {!knowledgeSession.isKnowledgeMode && articleSession.error && (
+              <Alert
+                showIcon
+                type="error"
+                message={articleSession.error}
+                style={{ margin: '12px 24px' }}
+              />
+            )}
             {/* <div */}
             {/* // ref={editorContainerRef}
               // style={{
@@ -432,13 +514,21 @@ const TiptapEditor = () => {
           </Content>
         </Layout>
       </Layout>
-      <RagChatPanel
+      <DocumentAgentPanel
         editor={editor}
         title={title}
+        identity={agentIdentity}
         open={ragChatOpen}
         onClose={() => setRagChatOpen(false)}
         onRequireLogin={requireAuth}
       />
+      {!knowledgeSession.isKnowledgeMode && (
+        <ArticlePublishPanel
+          open={publishOpen}
+          onClose={() => setPublishOpen(false)}
+          session={articleSession}
+        />
+      )}
     </Layout>
   );
 };
