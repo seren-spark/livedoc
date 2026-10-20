@@ -27,11 +27,11 @@ import { articleError } from '@/lib/article-draft';
 import './articles.scss';
 
 const indexLabels = {
-  pending: '待索引',
-  queued: '索引排队中',
-  indexing: '正在索引',
-  ready: '检索已就绪',
-  failed: '索引失败',
+  pending: '等待同步',
+  queued: '知识库同步中',
+  indexing: '知识库同步中',
+  ready: '已加入知识库',
+  failed: '知识库同步失败',
 };
 export default function CreatorArticles() {
   const navigate = useNavigate();
@@ -98,7 +98,7 @@ export default function CreatorArticles() {
             ? '文章已撤回，草稿已保留'
             : action === 'publish'
               ? '文章已重新发布'
-              : '已重新提交索引任务',
+              : '已重新提交知识库同步',
         );
         setRefresh((v) => v + 1);
       } catch (cause) {
@@ -202,19 +202,24 @@ export default function CreatorArticles() {
                         修改于{' '}
                         {new Date(article.updated_at).toLocaleString('zh-CN')}
                       </Typography.Text>
-                      {article.state === 'published' && (
-                        <Tag
-                          color={
-                            article.index_status === 'failed'
-                              ? 'error'
-                              : article.index_status === 'ready'
-                                ? 'success'
-                                : 'processing'
-                          }
-                        >
-                          {indexLabels[article.index_status ?? 'pending']}
-                        </Tag>
-                      )}
+                      {article.state === 'published' &&
+                        article.include_in_knowledge === false && (
+                          <Tag>仅博客</Tag>
+                        )}
+                      {article.state === 'published' &&
+                        article.include_in_knowledge !== false && (
+                          <Tag
+                            color={
+                              article.index_status === 'failed'
+                                ? 'error'
+                                : article.index_status === 'ready'
+                                  ? 'success'
+                                  : 'processing'
+                            }
+                          >
+                            {indexLabels[article.index_status ?? 'pending']}
+                          </Tag>
+                        )}
                       {article.state === 'published' &&
                         article.published_draft_version !==
                           article.draft_version && <Tag>有未发布修改</Tag>}
@@ -224,7 +229,7 @@ export default function CreatorArticles() {
                         type="danger"
                         style={{ marginTop: 8 }}
                       >
-                        {article.index_error || '建立索引失败，可以重试'}
+                        {article.index_error || '知识库同步失败，可稍后重试'}
                       </Typography.Paragraph>
                     )}
                   </div>
@@ -268,7 +273,7 @@ export default function CreatorArticles() {
                             loading={busyId === article.article_id}
                             onClick={() => void act(article, 'retry')}
                           >
-                            重试索引
+                            重试同步
                           </Button>
                         )}
                       </>

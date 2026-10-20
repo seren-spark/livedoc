@@ -32,6 +32,7 @@ import {
 import type { Editor } from '@tiptap/core';
 import AgentMarkdown from './AgentMarkdown';
 import AgentPlanEditor from './AgentPlanEditor';
+import AgentWiki from './AgentWiki';
 import { useAgentPanelSize } from './useAgentPanelSize';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -113,6 +114,7 @@ interface Turn {
   reflection?: string;
   createdId?: string;
   documentRejected?: boolean;
+  wikiAvailable?: boolean;
 }
 const uid = () => crypto.randomUUID();
 const labels: Record<string, string> = {
@@ -521,6 +523,7 @@ export default function DocumentAgentPanel({
                   ...patch,
                   result: d.result,
                   citations: d.citations ?? [],
+                  wikiAvailable: Boolean(d.wiki_available),
                 };
               if (event.event === 'error')
                 patch = {
@@ -746,15 +749,20 @@ export default function DocumentAgentPanel({
   };
   const openSource = (citation: AgentCitation) => {
     if (citation.kind === 'current_document' && editor) {
-      if (citation.snapshot_hash && captureSnapshot(editor, identity, title, revision.current).wire.hash !== citation.snapshot_hash) {
+      if (
+        citation.snapshot_hash &&
+        captureSnapshot(editor, identity, title, revision.current).wire.hash !==
+          citation.snapshot_hash
+      ) {
         message.info('正文已变更，请对照引用片段查看，已停止自动定位');
         return;
       }
-      const range = (citation.source_content || citation.snippet)
-        ? locateCitationRange(editor, editor.getMarkdown(), {
-            snippet: citation.source_content || citation.snippet!,
-          })
-        : null;
+      const range =
+        citation.source_content || citation.snippet
+          ? locateCitationRange(editor, editor.getMarkdown(), {
+              snippet: citation.source_content || citation.snippet!,
+            })
+          : null;
       if (range)
         editor.chain().focus().setTextSelection(range).scrollIntoView().run();
       else {
@@ -791,25 +799,31 @@ export default function DocumentAgentPanel({
       });
     if (citation.doc_id)
       void getKnowledgeDocument(citation.doc_id)
-        .then((doc) =>
-          {
-            if (citation.version === undefined || doc.document_version !== citation.version) {
-              preview(doc.content, citation.version !== undefined);
-              return;
-            }
-            const focusKey = `livedoc-citation-${uid()}`;
-            sessionStorage.setItem(focusKey, JSON.stringify({
+        .then((doc) => {
+          if (
+            citation.version === undefined ||
+            doc.document_version !== citation.version
+          ) {
+            preview(doc.content, citation.version !== undefined);
+            return;
+          }
+          const focusKey = `livedoc-citation-${uid()}`;
+          sessionStorage.setItem(
+            focusKey,
+            JSON.stringify({
               citation_id: citation.id,
               document_version: citation.version,
               snippet: citation.source_content || citation.snippet || '',
               source_anchor: citation.source_anchor,
               start_offset: citation.start_offset,
               end_offset: citation.end_offset,
-            }));
-            navigate(`/editor/draft?mode=knowledge&docId=${encodeURIComponent(citation.doc_id!)}&focusCitation=${encodeURIComponent(focusKey)}`);
-            onClose();
-          },
-        )
+            }),
+          );
+          navigate(
+            `/editor/draft?mode=knowledge&docId=${encodeURIComponent(citation.doc_id!)}&focusCitation=${encodeURIComponent(focusKey)}`,
+          );
+          onClose();
+        })
         .catch(() => message.error('资料不存在或已被回收'));
     else if (citation.import_id)
       void getDocumentImport(citation.import_id)
@@ -817,11 +831,17 @@ export default function DocumentAgentPanel({
         .catch(() => message.error('导入资料不可访问'));
     else {
       const text = attachments.find(
-        (a) => a.reference.id === citation.reference_id || `ref-${a.reference.id}` === citation.id,
+        (a) =>
+          a.reference.id === citation.reference_id ||
+          `ref-${a.reference.id}` === citation.id,
       )?.reference.content;
       Modal.info({
         title: citation.title,
-        content: <pre className="agent-reference-preview">{text || citation.source_content || citation.snippet}</pre>,
+        content: (
+          <pre className="agent-reference-preview">
+            {text || citation.source_content || citation.snippet}
+          </pre>
+        ),
         width: 700,
       });
     }
@@ -832,11 +852,38 @@ export default function DocumentAgentPanel({
       width: 720,
       content: (
         <div className="agent-reference-preview">
-          {citation.version !== undefined && <Tag>文档 v{citation.version}</Tag>}
-          {citation.evidence_kind === 'search_summary' && <Alert type="info" message={citation.source_content ? '此片段来自搜索结果，尚未读取网页全文。' : '此来源来自搜索结果，尚未读取网页原文。'} />}
-          {citation.evidence_kind === 'tool_output' && <Alert type="info" message="工具返回了此链接，尚未提供该网页的独立原文片段。" />}
-          <blockquote>{citation.source_content || citation.snippet || '此来源暂无独立原文片段。'}</blockquote>
-          <Button onClick={() => { modal.destroy(); openSource(citation); }}>查看原文</Button>
+          {citation.version !== undefined && (
+            <Tag>文档 v{citation.version}</Tag>
+          )}
+          {citation.evidence_kind === 'search_summary' && (
+            <Alert
+              type="info"
+              message={
+                citation.source_content
+                  ? '此片段来自搜索结果，尚未读取网页全文。'
+                  : '此来源来自搜索结果，尚未读取网页原文。'
+              }
+            />
+          )}
+          {citation.evidence_kind === 'tool_output' && (
+            <Alert
+              type="info"
+              message="工具返回了此链接，尚未提供该网页的独立原文片段。"
+            />
+          )}
+          <blockquote>
+            {citation.source_content ||
+              citation.snippet ||
+              '此来源暂无独立原文片段。'}
+          </blockquote>
+          <Button
+            onClick={() => {
+              modal.destroy();
+              openSource(citation);
+            }}
+          >
+            查看原文
+          </Button>
         </div>
       ),
     });
@@ -889,6 +936,7 @@ export default function DocumentAgentPanel({
             </div>
           </div>
           <Space>
+            <AgentWiki authorized={isLoggedIn} disabled={busy} />
             <Tooltip title="新对话">
               <Button
                 type="text"
@@ -1061,7 +1109,10 @@ export default function DocumentAgentPanel({
               {(turn.result?.kind === 'answer' ||
                 turn.result?.kind === 'document') && (
                 <div className="agent-markdown">
-                  <AgentMarkdown citations={turn.citations} onCitationClick={showCitation}>
+                  <AgentMarkdown
+                    citations={turn.citations}
+                    onCitationClick={showCitation}
+                  >
                     {turn.result.kind === 'answer'
                       ? turn.result.answer
                       : turn.result.markdown}
@@ -1070,22 +1121,38 @@ export default function DocumentAgentPanel({
               )}
               {!turn.result && turn.preview && (
                 <div className="agent-markdown">
-                  <AgentMarkdown citations={turn.readCitations} onCitationClick={showCitation}>{turn.preview}</AgentMarkdown>
+                  <AgentMarkdown
+                    citations={turn.readCitations}
+                    onCitationClick={showCitation}
+                  >
+                    {turn.preview}
+                  </AgentMarkdown>
                   {turn.status === 'failed' || turn.status === 'stopped' ? (
                     <small>未完成候选，仅供查看</small>
                   ) : null}
                 </div>
               )}
               {turn.result?.kind === 'answer' && (
-                <Button
-                  type="text"
-                  onClick={() => {
-                    setMode('agent');
-                    setQuery(`基于上面的回答编写文档：${turn.query}`);
-                  }}
-                >
-                  基于此回答编写
-                </Button>
+                <Space wrap>
+                  <AgentWiki
+                    authorized={isLoggedIn}
+                    runId={turn.runId}
+                    answer={turn.result.answer}
+                    available={
+                      turn.wikiAvailable && turn.status === 'completed'
+                    }
+                    disabled={busy}
+                  />
+                  <Button
+                    type="text"
+                    onClick={() => {
+                      setMode('agent');
+                      setQuery(`基于上面的回答编写文档：${turn.query}`);
+                    }}
+                  >
+                    基于此回答编写
+                  </Button>
+                </Space>
               )}
               {turn.result?.kind === 'edits' &&
                 turn.id === activeTurn.current && (
@@ -1146,7 +1213,10 @@ export default function DocumentAgentPanel({
                         </div>
                         {item.edit.operation !== 'delete' && (
                           <div className="agent-after">
-                            <AgentMarkdown citations={turn.citations} onCitationClick={showCitation}>
+                            <AgentMarkdown
+                              citations={turn.citations}
+                              onCitationClick={showCitation}
+                            >
                               {item.edit.content_markdown}
                             </AgentMarkdown>
                           </div>
@@ -1244,17 +1314,33 @@ export default function DocumentAgentPanel({
                   <summary>引用来源 · {turn.citations.length}</summary>
                   {turn.citations.map((c, index) => (
                     <button key={c.id} onClick={() => showCitation(c)}>
-                      [{index + 1}] {c.title}{c.version !== undefined ? ` · v${c.version}` : ''}
+                      [{index + 1}] {c.title}
+                      {c.version !== undefined ? ` · v${c.version}` : ''}
                     </button>
                   ))}
                 </details>
               )}
-              {!!turn.readCitations.filter((c) => !turn.citations.some((used) => used.id === c.id)).length && (
+              {!!turn.readCitations.filter(
+                (c) => !turn.citations.some((used) => used.id === c.id),
+              ).length && (
                 <details className="agent-sources">
-                  <summary>{turn.result ? '其他已读取资料' : '已读取资料'} · {turn.readCitations.filter((c) => !turn.citations.some((used) => used.id === c.id)).length}</summary>
-                  {turn.readCitations.filter((c) => !turn.citations.some((used) => used.id === c.id)).map((c) => (
-                    <button key={c.id} onClick={() => showCitation(c)}>{c.title}</button>
-                  ))}
+                  <summary>
+                    {turn.result ? '其他已读取资料' : '已读取资料'} ·{' '}
+                    {
+                      turn.readCitations.filter(
+                        (c) => !turn.citations.some((used) => used.id === c.id),
+                      ).length
+                    }
+                  </summary>
+                  {turn.readCitations
+                    .filter(
+                      (c) => !turn.citations.some((used) => used.id === c.id),
+                    )
+                    .map((c) => (
+                      <button key={c.id} onClick={() => showCitation(c)}>
+                        {c.title}
+                      </button>
+                    ))}
                 </details>
               )}
             </article>
@@ -1634,7 +1720,7 @@ function documentMarkdown(
           : c.import_id
             ? `${window.location.origin}/editor/draft?mode=knowledge&importId=${encodeURIComponent(c.import_id)}`
             : undefined;
-    const title = c.title.replace(/[\[\]]/g, '');
+    const title = c.title.replaceAll('[', '').replaceAll(']', '');
     return `${i + 1}. ${url ? `[${title}](${url.replace(/[()]/g, (c) => encodeURIComponent(c))})` : title}`;
   });
   return `${content}\n\n## 参考资料\n\n${lines.join('\n')}`;

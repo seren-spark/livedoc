@@ -30,6 +30,7 @@ export interface ArticleDraft {
   index_status: DocumentRecord['index_status'] | null;
   index_error: string | null;
   document_version: number | null;
+  include_in_knowledge?: boolean;
 }
 export type PublicArticle = DocumentRecord & {
   like_count: number;
@@ -61,10 +62,15 @@ export async function saveArticle(
     })
   ).data;
 }
-export async function publishArticle(id: string, version: number) {
+export async function publishArticle(
+  id: string,
+  version: number,
+  includeInKnowledge?: boolean,
+) {
   return (
     await ragClient.post<ArticleDraft>(`/articles/${id}/publish`, {
       expected_version: version,
+      include_in_knowledge: includeInKnowledge,
     })
   ).data;
 }

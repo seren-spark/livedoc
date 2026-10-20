@@ -446,7 +446,7 @@ export function useArticleSession(editor: Editor | null, enabled: boolean) {
     [requireAuth, save],
   );
   const publish = useCallback(
-    () =>
+    (includeInKnowledge?: boolean) =>
       requireAuth(() => {
         void (async () => {
           const validation = validateArticle(
@@ -477,10 +477,15 @@ export function useArticleSession(editor: Editor | null, enabled: boolean) {
             const published = await publishArticle(
               saved.article_id,
               saved.draft_version,
+              includeInKnowledge,
             );
             setRecord(published);
             setSaveState('saved');
-            message.success('文章已发布，正在建立检索索引');
+            message.success(
+              published.include_in_knowledge
+                ? '文章已发布，正在同步到知识库'
+                : '文章已发布',
+            );
             navigate(`/post/${saved.article_id}`);
           } catch (cause) {
             setError(articleError(cause));

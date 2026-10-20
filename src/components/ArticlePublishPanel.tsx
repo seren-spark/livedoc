@@ -7,10 +7,11 @@ import {
   Typography,
   Upload,
   Button,
+  Checkbox,
   message,
 } from 'antd';
 import { PictureOutlined } from '@ant-design/icons';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { useArticleSession } from '@/hooks/useArticleSession';
 import { fetchDocumentAssetBlob } from '@/api/rag';
 import { articleError } from '@/lib/article-draft';
@@ -26,6 +27,21 @@ export default function ArticlePublishPanel({
 }) {
   const [preview, setPreview] = useState('');
   const [uploading, setUploading] = useState(false);
+  const [includeInKnowledge, setIncludeInKnowledge] = useState(false);
+  const choiceChanged = useRef(false);
+  useEffect(() => {
+    if (!open) choiceChanged.current = false;
+    else if (!choiceChanged.current)
+      setIncludeInKnowledge(
+        session.record?.include_in_knowledge ??
+          Boolean(session.record?.published_draft_version),
+      );
+  }, [
+    open,
+    session.record?.article_id,
+    session.record?.include_in_knowledge,
+    session.record?.published_draft_version,
+  ]);
   useEffect(() => {
     let alive = true;
     let url = '';
@@ -56,11 +72,19 @@ export default function ArticlePublishPanel({
       title={session.record?.state === 'published' ? '更新发布' : '发布文章'}
       open={open}
       onCancel={onClose}
-      okText={session.record?.state === 'published' ? '更新发布' : '发布文章'}
+      okText={
+        includeInKnowledge
+          ? session.record?.state === 'published'
+            ? '更新并同步知识库'
+            : '发布并加入知识库'
+          : session.record?.state === 'published'
+            ? '更新文章'
+            : '发布文章'
+      }
       cancelText="继续编辑"
       confirmLoading={session.saveState === 'saving'}
       okButtonProps={{ disabled: busy }}
-      onOk={session.publish}
+      onOk={() => session.publish(includeInKnowledge)}
       width={560}
     >
       <Space
@@ -69,8 +93,37 @@ export default function ArticlePublishPanel({
         style={{ width: '100%', paddingTop: 12 }}
       >
         <Typography.Text type="secondary">
-          发布后所有人可阅读，文章将进入公共知识检索。保存草稿不会修改已发布内容。
+          发布后所有人可阅读。保存草稿不会修改已发布内容。
         </Typography.Text>
+        <div
+          style={{
+            padding: '14px 16px',
+            background: includeInKnowledge ? '#f0f5ff' : '#fafafa',
+            border: `1px solid ${includeInKnowledge ? '#adc6ff' : '#e5e7eb'}`,
+            borderRadius: 10,
+            width: '100%',
+            boxSizing: 'border-box',
+          }}
+        >
+          <Checkbox
+            checked={includeInKnowledge}
+            disabled={busy}
+            onChange={(event) => {
+              choiceChanged.current = true;
+              setIncludeInKnowledge(event.target.checked);
+            }}
+          >
+            同时加入知识库
+          </Checkbox>
+          <Typography.Paragraph
+            type="secondary"
+            style={{ margin: '8px 0 0 24px', fontSize: 13 }}
+          >
+            {includeInKnowledge
+              ? '发布后自动同步，可在知识检索和 AI 问答中引用这篇文章。'
+              : '仅作为博客文章发布，读者可正常访问，不参与知识检索。'}
+          </Typography.Paragraph>
+        </div>
         {session.error && (
           <Alert type="error" message={session.error} showIcon />
         )}

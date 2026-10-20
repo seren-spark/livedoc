@@ -67,13 +67,21 @@ const TiptapEditor = () => {
   const agentLocalId = useRef(crypto.randomUUID());
   const agentIdentity: DocumentIdentity = knowledgeSession.isKnowledgeMode
     ? knowledgeSession.documentRecord
-      ? {kind:'knowledge',doc_id:knowledgeSession.documentRecord.doc_id,persisted_version:knowledgeSession.documentRecord.document_version}
+      ? {
+          kind: 'knowledge',
+          doc_id: knowledgeSession.documentRecord.doc_id,
+          persisted_version: knowledgeSession.documentRecord.document_version,
+        }
       : knowledgeSession.importRecord
-        ? {kind:'import',import_id:knowledgeSession.importRecord.import_id}
-        : {kind:'unsaved',local_id:`knowledge:${agentLocalId.current}`}
+        ? { kind: 'import', import_id: knowledgeSession.importRecord.import_id }
+        : { kind: 'unsaved', local_id: `knowledge:${agentLocalId.current}` }
     : articleSession.record
-      ? {kind:'article',article_id:articleSession.record.article_id,draft_version:articleSession.record.draft_version}
-      : {kind:'unsaved',local_id:`article:${agentLocalId.current}`};
+      ? {
+          kind: 'article',
+          article_id: articleSession.record.article_id,
+          draft_version: articleSession.record.draft_version,
+        }
+      : { kind: 'unsaved', local_id: `article:${agentLocalId.current}` };
   const [isLinkBubbleVisible, setIsLinkBubbleVisible] = useState(false);
   const [showPerformanceMonitor, setShowPerformanceMonitor] = useState(false);
   const editorContainerRef = useRef<HTMLDivElement>(null);
@@ -386,7 +394,7 @@ const TiptapEditor = () => {
                 ? knowledgeSession.importRecord
                   ? '确认入库'
                   : knowledgeSession.documentRecord
-                    ? '保存并索引'
+                    ? '保存文档'
                     : '保存到知识库'
                 : articleSession.record?.state === 'published'
                   ? '更新发布'
