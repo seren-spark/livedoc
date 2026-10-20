@@ -10,7 +10,7 @@ export default function Post() {
     <>
       <FrontLayout>
         <MainContainer siderVisible={false}>
-          <MyContent style={{ maxWidth: '1400px' }}>
+          <MyContent className="post-layout" style={{ maxWidth: '1400px' }}>
             <Outlet></Outlet>
           </MyContent>
         </MainContainer>

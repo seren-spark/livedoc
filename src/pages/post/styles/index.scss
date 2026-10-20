@@ -31,6 +31,42 @@
     }
   }
 }
+.post-layout {
+  .article-container {
+    min-width: 0;
+    flex: 1;
+  }
+  .postDetail .tiptap {
+    min-height: 0;
+    padding: 0;
+  }
+  .postDetail h1.ant-typography {
+    overflow-wrap: anywhere;
+  }
+  .post-editor-container {
+    overflow-wrap: anywhere;
+  }
+  .post-editor-container img {
+    max-width: 100%;
+    height: auto;
+  }
+  .post-editor-container pre,
+  .post-editor-container .tableWrapper {
+    overflow-x: auto;
+  }
+  @media (max-width: 900px) {
+    .post-rightSide {
+      display: none;
+    }
+    .postDetail {
+      padding: 24px;
+    }
+    .postDetail h1.ant-typography {
+      font-size: 28px;
+      line-height: 1.4;
+    }
+  }
+}
 .post-rightSide {
   .ant-card {
     padding: 20px;

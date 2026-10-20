@@ -1,6 +1,7 @@
 import { Avatar, Divider, Dropdown, theme, type MenuProps } from 'antd';
 import React from 'react';
 import UserCard from '../UserCard';
+import defaultAvatar from '@/assets/default-avatar.svg';
 import './index.scss';
 import { Link } from 'react-router-dom';
 import { UserOutlined } from '@ant-design/icons';
@@ -161,7 +162,8 @@ export default function UserDropdown(props: UserDropdownProps) {
       }}
     >
       <Avatar
-        src="https://avatars.githubusercontent.com/u/1?v=4"
+        src={defaultAvatar}
+        alt="默认头像"
         style={{ cursor: 'pointer' }}
       />
     </Dropdown>

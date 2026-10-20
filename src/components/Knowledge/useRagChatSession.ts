@@ -277,7 +277,7 @@ export function useRagChatSession({
             chunk_id: citation.chunk_id,
             source_anchor: citation.source_anchor,
             document_version: citation.document_version,
-            snippet: citation.snippet || citation.content,
+            snippet: citation.source_content || citation.snippet || citation.content,
             start_offset: citation.start_offset,
             end_offset: citation.end_offset,
           }),
@@ -291,7 +291,7 @@ export function useRagChatSession({
       if (!editor) return;
       const currentContent = getEditorContext(editor).content;
       const range = locateCitationRange(editor, currentContent, {
-        snippet: citation.snippet || citation.content,
+        snippet: citation.source_content || citation.snippet || citation.content,
         startOffset: citation.start_offset,
         endOffset: citation.end_offset,
       });

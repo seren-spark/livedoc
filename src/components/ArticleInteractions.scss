@@ -1,0 +1,102 @@
+.article-interactions {
+  margin-top: 32px;
+  border-top: 1px solid #e9edf2;
+  padding-top: 24px;
+  font-size: 14px;
+  .ant-btn,
+  .ant-input,
+  .ant-typography,
+  .article-reactions a,
+  .comment-copy p {
+    font-size: 14px;
+  }
+  h5.comment-heading {
+    font-size: 16px;
+    margin: 0 0 16px;
+  }
+  .article-reactions {
+    padding-bottom: 24px;
+  }
+  .comment-total {
+    color: #86909c;
+    margin-left: 8px;
+    font-size: 13px;
+    font-weight: normal;
+  }
+  .comment-submit {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    margin: 22px 0;
+  }
+  .article-comment {
+    align-items: flex-start;
+    gap: 14px;
+    padding: 18px 0;
+  }
+  .comment-thread {
+    width: 100%;
+    min-width: 0;
+  }
+  .comment-row {
+    display: flex;
+    gap: 12px;
+    width: 100%;
+  }
+  .comment-time.ant-typography {
+    font-size: 12px;
+  }
+  .comment-actions {
+    margin-top: 6px;
+  }
+  .comment-actions .ant-btn {
+    font-size: 12px;
+    color: #86909c;
+    padding: 0 4px;
+  }
+  .comment-actions .ant-btn-dangerous {
+    color: #ff4d4f;
+  }
+  .comment-deleted {
+    color: #86909c;
+  }
+  .comment-replies,
+  .reply-composer {
+    margin: 12px 0 0 44px;
+  }
+  .comment-replies {
+    padding: 0 14px;
+    background: #f7f8fa;
+    border-radius: 6px;
+  }
+  .comment-replies .ant-list-item {
+    padding: 14px 0;
+  }
+  .reply-submit {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 24px;
+  }
+  .comment-avatar {
+    flex-shrink: 0;
+  }
+  .comment-copy {
+    min-width: 0;
+    flex: 1;
+  }
+  .comment-copy p {
+    margin: 10px 0 0;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    line-height: 1.8;
+  }
+  @media (max-width: 600px) {
+    .comment-submit > .ant-typography {
+      font-size: 12px;
+    }
+    .article-comment {
+      gap: 10px;
+    }
+  }
+}

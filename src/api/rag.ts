@@ -3,7 +3,7 @@ import axios from 'axios';
 export const ragBaseURL =
   import.meta.env.VITE_RAG_API_BASE_URL || 'http://127.0.0.1:8001';
 
-const ragClient = axios.create({
+export const ragClient = axios.create({
   baseURL: ragBaseURL,
   timeout: 10000,
   headers: {
@@ -132,6 +132,9 @@ export interface DocumentImportRecord {
 export type DocumentRecord = Required<
   Pick<DocumentIndexPayload, 'doc_id' | 'space_id' | 'title' | 'content'>
 > & {
+  category_id?: string | null;
+  deleted_at?: string | null;
+  delete_batch_id?: string | null;
   visibility: 'private' | 'team' | 'public';
   source_type: 'article' | 'draft' | 'note' | 'team_doc' | 'public_article';
   tags: string[];
@@ -160,6 +163,7 @@ export interface Citation {
   title: string;
   content: string;
   snippet: string;
+  source_content?: string;
   source_anchor: string;
   source_type: string;
   visibility: string;
@@ -376,6 +380,7 @@ export async function createKnowledgeDocument(payload: DocumentCreatePayload) {
 }
 
 export async function listKnowledgeDocuments(params?: {
+  category_id?: string;
   page?: number;
   page_size?: number;
   q?: string;

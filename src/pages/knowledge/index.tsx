@@ -3,6 +3,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Badge,
   Button,
+  Descriptions,
+  Dropdown,
   Empty,
   Input,
   Modal,
@@ -19,13 +21,13 @@ import type { ColumnsType } from 'antd/es/table';
 import {
   DeleteOutlined,
   DatabaseOutlined,
-  EditOutlined,
   FileAddOutlined,
   FolderOpenOutlined,
   HeartOutlined,
   HistoryOutlined,
   InboxOutlined,
   LockOutlined,
+  MoreOutlined,
   ReloadOutlined,
   RetweetOutlined,
   SearchOutlined,
@@ -48,6 +50,9 @@ import {
 } from '@/api/rag';
 import { useAuth } from '@/contexts/authContext';
 import './index.scss';
+import WorkspaceNavigation from '@/components/Knowledge/WorkspaceNavigation';
+import { getCategoryTree, categoryMutation } from '@/api/workspace';
+import { agentCapabilities } from '@/api/document-agent';
 
 const { Text, Title } = Typography;
 
@@ -67,6 +72,14 @@ const statusLabel: Record<DocumentRecord['index_status'], string> = {
   indexing: '索引中',
   ready: '已就绪',
   failed: '失败',
+};
+
+const statusHint: Record<DocumentRecord['index_status'], string> = {
+  pending: '文档已保存，建立索引后可用于知识库问答。',
+  queued: '正在等待处理，完成后即可用于知识库问答。',
+  indexing: '正在处理文档内容，请稍候。',
+  ready: '文档可用于知识库搜索和问答。',
+  failed: '处理未完成，可在详情中查看原因并重建索引。',
 };
 
 const visibilityColor: Record<DocumentRecord['visibility'], string> = {
@@ -143,6 +156,8 @@ export default function KnowledgePage() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
   const [loading, setLoading] = useState(false);
+  const [detailDocId, setDetailDocId] = useState<string | null>(null);
+  const detailDocument = docs.find((doc) => doc.doc_id === detailDocId);
   const [activeImport, setActiveImport] = useState<DocumentImportRecord | null>(
     null,
   );
@@ -154,6 +169,22 @@ export default function KnowledgePage() {
   );
   const [selectedSpace, setSelectedSpace] = useState<SpaceKey>('private');
   const [selectedFolder, setSelectedFolder] = useState('全部文档');
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [workspaceEnabled, setWorkspaceEnabled] = useState(false);
+  useEffect(() => {
+    let live = true;
+    if (isLoggedIn)
+      void agentCapabilities()
+        .then((c) => {
+          if (live) setWorkspaceEnabled(c.workspace_enabled);
+        })
+        .catch(() => {
+          if (live) setWorkspaceEnabled(false);
+        });
+    return () => {
+      live = false;
+    };
+  }, [isLoggedIn]);
   const [keyword, setKeyword] = useState('');
   const [statusFilter, setStatusFilter] = useState<
     DocumentRecord['index_status'] | 'all'
@@ -184,7 +215,15 @@ export default function KnowledgePage() {
                 ? 'team'
                 : undefined,
         team_id: isTeamSpace ? selectedSpace.slice(5) : undefined,
-        tag: selectedFolder !== '全部文档' ? selectedFolder : undefined,
+        tag:
+          (selectedSpace !== 'private' || !workspaceEnabled) &&
+          selectedFolder !== '全部文档'
+            ? selectedFolder
+            : undefined,
+        category_id:
+          selectedSpace === 'private' && workspaceEnabled
+            ? (selectedCategory ?? undefined)
+            : undefined,
         index_status: statusFilter !== 'all' ? statusFilter : undefined,
       });
       setDocs(data.items);
@@ -224,6 +263,8 @@ export default function KnowledgePage() {
     pageSize,
     keyword,
     selectedFolder,
+    selectedCategory,
+    workspaceEnabled,
     selectedSpace,
     statusFilter,
     visibilityFilter,
@@ -370,7 +411,13 @@ export default function KnowledgePage() {
   const tableDocs = useMemo(() => {
     return spaceDocs.filter((doc) => {
       const folderOk =
-        selectedFolder === '全部文档' || getFolderName(doc) === selectedFolder;
+        selectedSpace === 'private' && workspaceEnabled
+          ? !selectedCategory ||
+            (selectedCategory === '__uncategorized__'
+              ? !doc.category_id
+              : doc.category_id === selectedCategory)
+          : selectedFolder === '全部文档' ||
+            getFolderName(doc) === selectedFolder;
       const statusOk =
         statusFilter === 'all' || doc.index_status === statusFilter;
       const visibilityOk =
@@ -391,7 +438,16 @@ export default function KnowledgePage() {
           .includes(keyword.trim().toLowerCase());
       return folderOk && statusOk && visibilityOk && keywordOk;
     });
-  }, [keyword, selectedFolder, spaceDocs, statusFilter, visibilityFilter]);
+  }, [
+    keyword,
+    selectedFolder,
+    selectedCategory,
+    selectedSpace,
+    workspaceEnabled,
+    spaceDocs,
+    statusFilter,
+    visibilityFilter,
+  ]);
 
   const counts = useMemo(
     () => ({
@@ -427,6 +483,12 @@ export default function KnowledgePage() {
     });
     if (target.team_id) params.set('team', target.team_id);
     if (target.folder) params.set('folder', target.folder);
+    if (
+      selectedSpace === 'private' &&
+      selectedCategory &&
+      selectedCategory !== '__uncategorized__'
+    )
+      params.set('categoryId', selectedCategory);
     navigate(`/editor/draft?${params.toString()}`);
   };
 
@@ -524,30 +586,66 @@ export default function KnowledgePage() {
     }
   };
 
+  const moveToCategory = async (record: DocumentRecord) => {
+    try {
+      const tree = await getCategoryTree();
+      let categoryId = record.category_id ?? null;
+      Modal.confirm({
+        title: '移动文档到分类',
+        content: (
+          <Select
+            aria-label="目标分类"
+            style={{ width: '100%' }}
+            defaultValue={categoryId ?? '__uncategorized__'}
+            options={[
+              { value: '__uncategorized__', label: '未分类' },
+              ...tree.items.map((category) => ({
+                value: category.category_id,
+                label: category.name,
+              })),
+            ]}
+            onChange={(value) => {
+              categoryId = value === '__uncategorized__' ? null : value;
+            }}
+          />
+        ),
+        okText: '移动',
+        cancelText: '取消',
+        onOk: async () => {
+          await categoryMutation('/assign', {
+            ids: [record.doc_id],
+            category_id: categoryId,
+            expected_tree_revision: tree.revision,
+          });
+          await loadDocs();
+        },
+      });
+    } catch {
+      message.error('分类加载失败');
+    }
+  };
+
   const columns: ColumnsType<DocumentRecord> = [
     {
       title: '文档名',
       dataIndex: 'title',
       render: (_, record) => (
-        <Space direction="vertical" size={3} className="knowledge-doc-cell">
-          <Text strong ellipsis={{ tooltip: record.title }}>
-            {record.title}
-          </Text>
-          <Text type="secondary" ellipsis={{ tooltip: record.doc_id }}>
-            {record.doc_id}
-          </Text>
-        </Space>
+        <button
+          type="button"
+          className="knowledge-doc-title"
+          onClick={() => openEdit(record)}
+          title={record.title}
+        >
+          {record.title}
+        </button>
       ),
     },
     {
       title: '权限',
       dataIndex: 'visibility',
       width: 118,
-      render: (value: DocumentRecord['visibility'], record) => (
-        <Space direction="vertical" size={3}>
-          <Tag color={visibilityColor[value]}>{visibilityLabel[value]}</Tag>
-          {record.team_id && <Text type="secondary">{record.team_id}</Text>}
-        </Space>
+      render: (value: DocumentRecord['visibility']) => (
+        <Tag color={visibilityColor[value]}>{visibilityLabel[value]}</Tag>
       ),
     },
     {
@@ -556,28 +654,14 @@ export default function KnowledgePage() {
       render: (_, record) => <Text>{getFolderName(record)}</Text>,
     },
     {
-      title: '作者',
-      width: 150,
-      render: (_, record) => (
-        <Text type="secondary">{record.owner_id || '系统资料'}</Text>
-      ),
-    },
-    {
       title: '索引状态',
-      width: 140,
+      width: 110,
       render: (_, record) => (
-        <Space direction="vertical" size={3}>
+        <Tooltip title={statusHint[record.index_status]}>
           <Tag color={statusColor[record.index_status]}>
             {statusLabel[record.index_status]}
           </Tag>
-          <Text type="secondary">{record.chunk_count} chunks</Text>
-          {record.active_index_version && (
-            <Text type="secondary">
-              serving v{record.active_index_version} / content v
-              {record.document_version}
-            </Text>
-          )}
-        </Space>
+        </Tooltip>
       ),
     },
     {
@@ -590,32 +674,63 @@ export default function KnowledgePage() {
     },
     {
       title: '操作',
-      width: 170,
+      width: 180,
+      fixed: 'right',
       render: (_, record) => (
-        <Space size={4}>
-          <Tooltip title="编辑">
+        <Space size={4} className="knowledge-row-actions">
+          <Button type="link" size="small" onClick={() => openEdit(record)}>
+            编辑
+          </Button>
+          <Dropdown
+            trigger={['click']}
+            menu={{
+              items: [
+                ...(record.visibility === 'private' && workspaceEnabled
+                  ? [
+                      {
+                        key: 'move',
+                        label: '移动到分类',
+                        icon: <FolderOpenOutlined />,
+                      },
+                    ]
+                  : []),
+                {
+                  key: 'reindex',
+                  label: '重建索引',
+                  icon: <RetweetOutlined />,
+                  disabled: ['queued', 'indexing'].includes(
+                    record.index_status,
+                  ),
+                },
+                { type: 'divider' },
+                {
+                  key: 'delete',
+                  label: '删除文档',
+                  icon: <DeleteOutlined />,
+                  danger: true,
+                },
+              ],
+              onClick: ({ key }) => {
+                if (key === 'move') void moveToCategory(record);
+                if (key === 'reindex') void reindex(record);
+                if (key === 'delete') remove(record);
+              },
+            }}
+          >
             <Button
+              type="text"
               size="small"
-              icon={<EditOutlined />}
-              onClick={() => openEdit(record)}
+              aria-label={`更多操作：${record.title}`}
+              icon={<MoreOutlined />}
             />
-          </Tooltip>
-          <Tooltip title="重建索引">
-            <Button
-              size="small"
-              icon={<RetweetOutlined />}
-              disabled={['queued', 'indexing'].includes(record.index_status)}
-              onClick={() => reindex(record)}
-            />
-          </Tooltip>
-          <Tooltip title="删除">
-            <Button
-              size="small"
-              danger
-              icon={<DeleteOutlined />}
-              onClick={() => remove(record)}
-            />
-          </Tooltip>
+          </Dropdown>
+          <Button
+            type="link"
+            size="small"
+            onClick={() => setDetailDocId(record.doc_id)}
+          >
+            详情
+          </Button>
         </Space>
       ),
     },
@@ -641,6 +756,7 @@ export default function KnowledgePage() {
     <button
       key={key}
       type="button"
+      aria-current={selectedSpace === key ? 'page' : undefined}
       className={
         selectedSpace === key
           ? 'knowledge-nav-item is-active'
@@ -675,6 +791,22 @@ export default function KnowledgePage() {
             <span>空间 / 目录 / 文档</span>
           </div>
         </div>
+        {selectedSpace === 'private' && isLoggedIn && workspaceEnabled && (
+          <WorkspaceNavigation
+            selected={selectedCategory}
+            onSelect={(id) => {
+              setSelectedCategory(id);
+              setPage(1);
+            }}
+            onChanged={() => void loadDocs()}
+            refreshKey={docs
+              .map(
+                (d) =>
+                  `${d.doc_id}:${d.document_version}:${d.category_id ?? ''}`,
+              )
+              .join(',')}
+          />
+        )}
 
         <div className="knowledge-nav-group">
           <Text type="secondary">一级空间</Text>
@@ -889,24 +1021,26 @@ export default function KnowledgePage() {
           </section>
         )}
 
-        <nav className="knowledge-folder-tabs" aria-label="知识库目录">
-          {folders.map((folder) => (
-            <button
-              type="button"
-              key={folder}
-              className={selectedFolder === folder ? 'is-active' : undefined}
-              onClick={() => setSelectedFolder(folder)}
-            >
-              {folder}
-              <span>
-                {folder === '全部文档'
-                  ? spaceDocs.length
-                  : spaceDocs.filter((doc) => getFolderName(doc) === folder)
-                      .length}
-              </span>
-            </button>
-          ))}
-        </nav>
+        {(selectedSpace !== 'private' || !workspaceEnabled) && (
+          <nav className="knowledge-folder-tabs" aria-label="知识库目录">
+            {folders.map((folder) => (
+              <button
+                type="button"
+                key={folder}
+                className={selectedFolder === folder ? 'is-active' : undefined}
+                onClick={() => setSelectedFolder(folder)}
+              >
+                {folder}
+                <span>
+                  {folder === '全部文档'
+                    ? spaceDocs.length
+                    : spaceDocs.filter((doc) => getFolderName(doc) === folder)
+                        .length}
+                </span>
+              </button>
+            ))}
+          </nav>
+        )}
 
         <section className="knowledge-toolbar">
           <Input
@@ -937,7 +1071,7 @@ export default function KnowledgePage() {
               { label: '失败', value: 'failed' },
             ]}
           />
-          <Tag color="processing">Ready {counts.ready}</Tag>
+          <Tag color="processing">已就绪 {counts.ready}</Tag>
         </section>
 
         <section className="knowledge-table-shell">
@@ -956,7 +1090,7 @@ export default function KnowledgePage() {
               loading={loading}
               columns={columns}
               dataSource={tableDocs}
-              scroll={{ x: 1080 }}
+              scroll={{ x: 880 }}
               pagination={{
                 current: page,
                 pageSize,
@@ -973,6 +1107,95 @@ export default function KnowledgePage() {
           )}
         </section>
       </main>
+      <Modal
+        open={Boolean(detailDocument)}
+        title="文档详情"
+        onCancel={() => setDetailDocId(null)}
+        destroyOnHidden
+        footer={<Button onClick={() => setDetailDocId(null)}>关闭</Button>}
+        width={680}
+        className="knowledge-detail-modal"
+        styles={{ body: { maxHeight: '65vh', overflowY: 'auto' } }}
+      >
+        {detailDocument && (
+          <>
+            <Title level={5}>{detailDocument.title}</Title>
+            <Descriptions bordered size="small" column={1}>
+              <Descriptions.Item label="文档类型">
+                {sourceTypeLabel[detailDocument.source_type]}
+              </Descriptions.Item>
+              <Descriptions.Item label="访问权限">
+                {visibilityLabel[detailDocument.visibility]}
+              </Descriptions.Item>
+              <Descriptions.Item label="索引状态">
+                <Tag color={statusColor[detailDocument.index_status]}>
+                  {statusLabel[detailDocument.index_status]}
+                </Tag>
+              </Descriptions.Item>
+              <Descriptions.Item label="创建时间">
+                {formatTime(detailDocument.created_at)}
+              </Descriptions.Item>
+              <Descriptions.Item label="更新时间">
+                {formatTime(detailDocument.updated_at)}
+              </Descriptions.Item>
+            </Descriptions>
+            <Title level={5}>技术信息</Title>
+            <Descriptions bordered size="small" column={1}>
+              {[
+                ['文档 ID', detailDocument.doc_id],
+                ['空间 ID', detailDocument.space_id],
+                ['所有者 ID', detailDocument.owner_id],
+                ['团队 ID', detailDocument.team_id],
+                ['分类 ID', detailDocument.category_id],
+                ['导入 ID', detailDocument.source_import_id],
+                ['索引任务 ID', detailDocument.latest_index_job_id],
+              ]
+                .filter(([, value]) => value)
+                .map(([label, value]) => (
+                  <Descriptions.Item key={label} label={label}>
+                    <Text copyable className="knowledge-detail-value">
+                      {value}
+                    </Text>
+                  </Descriptions.Item>
+                ))}
+              <Descriptions.Item label="分片数量">
+                {detailDocument.chunk_count}
+              </Descriptions.Item>
+              <Descriptions.Item label="文档版本">
+                {detailDocument.document_version}
+              </Descriptions.Item>
+              <Descriptions.Item label="生效索引版本">
+                {detailDocument.active_index_version ?? '尚未建立索引'}
+              </Descriptions.Item>
+              <Descriptions.Item label="索引完成时间">
+                {formatTime(detailDocument.indexed_at)}
+              </Descriptions.Item>
+              {detailDocument.index_error && (
+                <Descriptions.Item label="失败原因">
+                  <Text type="danger">{detailDocument.index_error}</Text>
+                </Descriptions.Item>
+              )}
+            </Descriptions>
+            {detailDocument.assets?.map((asset) => (
+              <div key={asset.asset_id}>
+                <Title level={5}>附件 · {asset.filename}</Title>
+                <Descriptions bordered size="small" column={1}>
+                  <Descriptions.Item label="附件 ID">
+                    <Text copyable className="knowledge-detail-value">
+                      {asset.asset_id}
+                    </Text>
+                  </Descriptions.Item>
+                  <Descriptions.Item label="SHA-256">
+                    <Text copyable className="knowledge-detail-value">
+                      {asset.sha256}
+                    </Text>
+                  </Descriptions.Item>
+                </Descriptions>
+              </div>
+            ))}
+          </>
+        )}
+      </Modal>
     </div>
   );
 }

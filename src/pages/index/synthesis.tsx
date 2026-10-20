@@ -1,71 +1,38 @@
-import { DatabaseOutlined, EyeOutlined, LikeOutlined } from '@ant-design/icons';
 import {
-  Button,
-  Empty,
-  List,
-  Row,
-  Col,
-  Space,
-  Tag,
-  Typography,
-  message,
-} from 'antd';
+  DatabaseOutlined,
+  LikeOutlined,
+  CommentOutlined,
+  StarOutlined,
+} from '@ant-design/icons';
+import { Alert, Button, Empty, List, Space, Tag, Typography } from 'antd';
 import '@/layouts/frontLayout/MyContent/index.scss';
-import { useNavigate } from 'react-router-dom';
-import { useEffect, useMemo, useState } from 'react';
-import { listPublicArticles, type DocumentRecord } from '@/api/rag';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { ragBaseURL, listPublicArticles } from '@/api/rag';
+import type { PublicArticle } from '@/api/articles';
 
-const { Text, Title } = Typography;
-
-function getExcerpt(content: string) {
-  return content
-    .replace(/```[\s\S]*?```/g, '')
-    .replace(/!\[[^\]]*]\([^)]*\)/g, '')
-    .replace(/[#>*_`~\-[\]]/g, '')
-    .replace(/\s+/g, ' ')
-    .trim()
-    .slice(0, 112);
-}
-
-function formatArticleTime(value?: string | null) {
-  if (!value) return '刚刚更新';
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value.slice(0, 10);
-  const days = Math.max(
-    0,
-    Math.floor((Date.now() - date.getTime()) / 86_400_000),
-  );
-  if (days === 0) return '今天';
-  if (days < 30) return `${days} 天前`;
-  return date.toISOString().slice(0, 10);
-}
-
-function getStableStats(docId: string) {
-  const seed = Array.from(docId).reduce(
-    (sum, char) => sum + char.charCodeAt(0),
-    0,
-  );
-  return {
-    views: `${((seed % 42) / 10 + 1.1).toFixed(1)}k`,
-    likes: (seed % 86) + 18,
-  };
-}
-
-export default function Test() {
+export default function ArticleFeed() {
   const navigate = useNavigate();
-  const [articles, setArticles] = useState<DocumentRecord[]>([]);
+  const [params, setParams] = useSearchParams();
+  const page = Math.max(1, Number(params.get('page')) || 1);
+  const [articles, setArticles] = useState<PublicArticle[]>([]);
+  const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
-
+  const [error, setError] = useState('');
+  const [refresh, setRefresh] = useState(0);
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    void listPublicArticles({ page: 1, page_size: 8 })
+    setError('');
+    void listPublicArticles({ page, page_size: 8 })
       .then((result) => {
-        if (!cancelled) setArticles(result.items);
+        if (!cancelled) {
+          setArticles(result.items as PublicArticle[]);
+          setTotal(result.total);
+        }
       })
-      .catch((error) => {
-        console.error(error);
-        if (!cancelled) message.error('公共文章加载失败，请确认后端服务已启动');
+      .catch(() => {
+        if (!cancelled) setError('文章加载失败，请稍后重试');
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -73,20 +40,7 @@ export default function Test() {
     return () => {
       cancelled = true;
     };
-  }, []);
-
-  const articleItems = useMemo(
-    () =>
-      articles.map((article) => ({
-        ...article,
-        excerpt: getExcerpt(article.content),
-        time: formatArticleTime(article.updated_at),
-        stats: getStableStats(article.doc_id),
-        author: article.owner_id || 'LiveDoc 官方',
-      })),
-    [articles],
-  );
-
+  }, [page, refresh]);
   return (
     <>
       <div
@@ -103,8 +57,10 @@ export default function Test() {
         }}
       >
         <Space direction="vertical" size={2}>
-          <Text strong>知识库管理</Text>
-          <Text type="secondary">按个人和团队空间管理 RAG 可检索资料</Text>
+          <Typography.Text strong>知识库管理</Typography.Text>
+          <Typography.Text type="secondary">
+            按个人和团队空间管理 RAG 可检索资料
+          </Typography.Text>
         </Space>
         <Button
           type="primary"
@@ -114,88 +70,96 @@ export default function Test() {
           进入知识库
         </Button>
       </div>
+      {error && (
+        <Alert
+          message={error}
+          type="error"
+          showIcon
+          action={
+            <Button onClick={() => setRefresh((v) => v + 1)}>重试</Button>
+          }
+        />
+      )}
       <List
         loading={loading}
-        dataSource={articleItems}
+        dataSource={articles}
+        pagination={{
+          current: page,
+          total,
+          pageSize: 8,
+          showSizeChanger: false,
+          hideOnSinglePage: true,
+          onChange: (next) => {
+            setParams({ page: String(next) });
+            window.scrollTo({ top: 0 });
+          },
+        }}
         locale={{
           emptyText: (
             <Empty
               image={Empty.PRESENTED_IMAGE_SIMPLE}
-              description="暂无公共文章，请先生成演示数据或导入公开文章"
+              description="暂无公开文章，开始分享你的知识与想法"
             />
           ),
         }}
         renderItem={(article) => (
-          <List.Item className="article-list-item">
-            <div style={{ flex: '1 1 auto' }}>
-              <Title
+          <List.Item className="article-list-item" style={{ gap: 24 }}>
+            <div style={{ flex: '1 1 auto', minWidth: 0 }}>
+              <Typography.Title
                 level={4}
                 className="article-list-item-title"
-                style={{
-                  margin: '0 0 8px 0',
-                  color: '#252933',
-                  cursor: 'pointer',
-                }}
-                onClick={() => navigate(`/post/${article.doc_id}`)}
+                style={{ margin: '0 0 8px' }}
               >
-                {article.title}
-              </Title>
-
-              <Text
+                <Link to={'/post/' + article.doc_id}>{article.title}</Link>
+              </Typography.Title>
+              <Typography.Paragraph
                 type="secondary"
-                style={{
-                  lineHeight: '22px',
-                  display: 'block',
-                  marginBottom: '12px',
-                }}
+                ellipsis={{ rows: 2 }}
+                style={{ lineHeight: '22px', marginBottom: 12 }}
               >
-                {article.excerpt}
-                {article.excerpt.length >= 112 ? '...' : ''}
-              </Text>
-
-              <Row justify="space-between" align="middle">
-                <Col>
-                  <Space size="middle">
-                    <Space size="small">
-                      <Text strong className="article-list-item-author">
-                        {article.author}
-                      </Text>
-                    </Space>
-                    <Text type="secondary" className="article-list-item-meta">
-                      {article.time}
-                    </Text>
-                    <Space size="small">
-                      <EyeOutlined className="article-list-item-icon" />
-                      <Text type="secondary" className="article-list-item-meta">
-                        {article.stats.views}
-                      </Text>
-                    </Space>
-                    <Space size="small">
-                      <LikeOutlined className="article-list-item-icon" />
-                      <Text type="secondary" className="article-list-item-meta">
-                        {article.stats.likes}
-                      </Text>
-                    </Space>
-                  </Space>
-                </Col>
-                <Col>
-                  <Space size="small">
-                    {article.tags?.map((tag) => (
-                      <Tag
-                        key={tag}
-                        color="blue"
-                        className="article-list-item-tag"
-                      >
-                        {tag}
-                      </Tag>
-                    ))}
-                  </Space>
-                </Col>
-              </Row>
+                {article.summary}
+              </Typography.Paragraph>
+              <Space size="middle" wrap>
+                <Typography.Text strong>{article.author_name}</Typography.Text>
+                <Typography.Text type="secondary">
+                  {new Date(
+                    article.published_at || article.created_at,
+                  ).toLocaleDateString('zh-CN')}
+                </Typography.Text>
+                {article.tags.map((tag) => (
+                  <Tag key={tag}>{tag}</Tag>
+                ))}
+                <Typography.Text type="secondary">
+                  <LikeOutlined /> {article.like_count ?? 0}
+                </Typography.Text>
+                <Typography.Text type="secondary">
+                  <CommentOutlined /> {article.comment_count ?? 0}
+                </Typography.Text>
+                <Typography.Text type="secondary">
+                  <StarOutlined /> {article.favorite_count ?? 0}
+                </Typography.Text>
+              </Space>
             </div>
-            <div className="article-list-item-thumb" aria-hidden="true">
-              <span>{article.tags?.[0] || 'LiveDoc'}</span>
-            </div>
+            {article.cover_url && (
+              <Link
+                to={'/post/' + article.doc_id}
+                aria-label={'阅读 ' + article.title}
+                style={{ flexShrink: 0 }}
+              >
+                <img
+                  src={ragBaseURL + article.cover_url}
+                  alt=""
+                  loading="lazy"
+                  style={{
+                    width: 132,
+                    height: 88,
+                    borderRadius: 6,
+                    objectFit: 'cover',
+                    maxWidth: '25vw',
+                  }}
+                />
+              </Link>
+            )}
           </List.Item>
         )}
       />

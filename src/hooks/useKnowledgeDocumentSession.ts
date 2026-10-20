@@ -22,12 +22,12 @@ import {
   revokeAssetBlobs, // 释放 Blob URL(防止内存泄漏)
   type AssetBlobMap, // 资源 ID 到 Blob URL 的映射
 } from '@/lib/knowledge-editor';
-import marked from '@/utils/marked'; // Markdown 解析器
 import { locateCitationRange } from '@/lib/citation-location'; // 引用定位工具
 import type { Editor } from '@tiptap/core';
 import { message } from 'antd';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { getCategoryTree, getTemplates, categoryMutation } from '@/api/workspace';
 
 // 保存状态枚举:空闲、加载中、有未保存修改、保存中、已保存、错误
 type SaveState = 'idle' | 'loading' | 'dirty' | 'saving' | 'saved' | 'error';
@@ -53,6 +53,8 @@ export function useKnowledgeDocumentSession(editor: Editor | null) {
   const docId = searchParams.get('docId') || undefined; // 文档 ID(已有文档)
   const importId = searchParams.get('importId') || undefined; // 导入 ID(导入文档)
   const focusCitationKey = searchParams.get('focusCitation') || undefined; // 引用定位键(从 session storage 读取引用信息)
+  const templateId = searchParams.get('templateId') || undefined;
+  const categoryId = searchParams.get('categoryId') || undefined;
   const isKnowledgeMode = mode === 'knowledge';
 
   // ==================== 状态定义 ====================
@@ -187,7 +189,7 @@ export function useKnowledgeDocumentSession(editor: Editor | null) {
               fetchDocumentAssetBlob,
               blobUrls.current,
             );
-            editor.commands.setContent(String(marked.parse(markdown)));
+            editor.commands.setContent(markdown, { contentType: 'markdown' });
           }
 
           // 8. 引用定位(高亮跳转到引用来源)
@@ -241,7 +243,7 @@ export function useKnowledgeDocumentSession(editor: Editor | null) {
               fetchDocumentAssetBlob,
               blobUrls.current,
             );
-            editor.commands.setContent(String(marked.parse(markdown)));
+            editor.commands.setContent(markdown, { contentType: 'markdown' });
           }
         }
         // ========== 分支 3: 新建文档 ==========
@@ -252,10 +254,16 @@ export function useKnowledgeDocumentSession(editor: Editor | null) {
           setImportRecord(null);
           setTitleState('');
           editor.commands.clearContent();
+          if(templateId) {
+            const template=(await getTemplates()).find(t=>t.template_id===templateId);
+            if(!template) throw new Error('模板不存在');
+            editor.commands.setContent(template.markdown,{contentType:'markdown'});
+            setTitleState(template.name);
+          }
         }
 
         // 标记为已保存
-        setSaveState('saved');
+        setSaveState(templateId && !docId && !importId ? 'dirty' : 'saved');
       } catch (error) {
         console.error(error);
         if (!canceled) {
@@ -274,7 +282,7 @@ export function useKnowledgeDocumentSession(editor: Editor | null) {
     return () => {
       canceled = true;
     };
-  }, [docId, editor, focusCitationKey, importId, isKnowledgeMode, navigate]);
+  }, [docId, editor, focusCitationKey, importId, isKnowledgeMode, navigate, templateId]);
 
   // ==================== 编辑器更新监听(标记 dirty) ====================
   useEffect(() => {
@@ -530,6 +538,10 @@ export function useKnowledgeDocumentSession(editor: Editor | null) {
           tags: defaults.tags, // 标签
           index_now: true, // 立即索引
         });
+        if(categoryId && defaults.visibility==='private') {
+          try {const tree=await getCategoryTree();await categoryMutation('/assign',{ids:[record.doc_id],category_id:categoryId,expected_tree_revision:tree.revision});record.category_id=categoryId;}
+          catch {message.warning('文档已保存，分类分配失败，可在知识库重新移动');}
+        }
 
         // 更新本地状态
         setDocumentRecord(record);

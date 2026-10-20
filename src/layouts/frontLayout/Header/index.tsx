@@ -62,6 +62,8 @@ const items = [
     key: '/editor/draft',
     label: '写文章',
   },
+  { key: '/creator/articles', label: '我的文章 / 草稿箱' },
+  { key: '/creator/favorites', label: '我的收藏' },
   {
     key: '/pins',
     label: '写沸点',
@@ -121,7 +123,9 @@ export default function MyHeader(props?: MyHeaderProps) {
   const location = useLocation();
   const visible = useScrollVisibility();
   const handleMenu: MenuProps['onClick'] = (e) => {
-    navigate(e.key);
+    if (e.key.startsWith('/creator/') || e.key === '/editor/draft')
+      requireAuth(() => navigate(e.key));
+    else navigate(e.key);
   };
   const handleLoginModal = () => {
     requireAuth(() => {
@@ -171,6 +175,9 @@ export default function MyHeader(props?: MyHeaderProps) {
                   type="primary"
                   menu={{ items, onClick: handleMenu }}
                   icon={<CaretDownFilled />}
+                  onClick={() =>
+                    requireAuth(() => navigate('/creator/articles'))
+                  }
                 >
                   创作者中心
                 </Dropdown.Button>

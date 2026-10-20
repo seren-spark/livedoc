@@ -142,6 +142,10 @@ export function editorHtmlToMarkdown(html: string, blobUrls: AssetBlobMap) {
       return `\n\n![${escapeMarkdown(alt)}](${src}${title ? ` \"${escapeMarkdown(title)}\"` : ''})\n\n`;
     },
   });
+  turndown.addRule('knowledge-highlight', {
+    filter: 'mark',
+    replacement: content => `==${content}==`,
+  });
   turndown.addRule('knowledge-table', {
     filter: 'table',
     replacement: (_content, node) => `\n\n${node.outerHTML}\n\n`,
