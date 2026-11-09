@@ -64,7 +64,34 @@ const TiptapEditor = () => {
     : (value: string) => articleSession.change({ title: value });
   const [publishOpen, setPublishOpen] = useState(false);
   const [ragChatOpen, setRagChatOpen] = useState(false);
-  const agentLocalId = useRef(crypto.randomUUID());
+  const agentLocalId = useRef<string | null>(null);
+  if (!agentLocalId.current) {
+    try {
+      agentLocalId.current =
+        sessionStorage.getItem('livedoc:agent:draft-id') || crypto.randomUUID();
+      sessionStorage.setItem('livedoc:agent:draft-id', agentLocalId.current);
+    } catch {
+      agentLocalId.current = crypto.randomUUID();
+    }
+  }
+  useEffect(() => {
+    if (
+      !knowledgeSession.documentRecord &&
+      !knowledgeSession.importRecord &&
+      !articleSession.record
+    )
+      return;
+    agentLocalId.current = crypto.randomUUID();
+    try {
+      sessionStorage.setItem('livedoc:agent:draft-id', agentLocalId.current);
+    } catch {
+      /* optional */
+    }
+  }, [
+    knowledgeSession.documentRecord?.doc_id,
+    knowledgeSession.importRecord?.import_id,
+    articleSession.record?.article_id,
+  ]);
   const agentIdentity: DocumentIdentity = knowledgeSession.isKnowledgeMode
     ? knowledgeSession.documentRecord
       ? {

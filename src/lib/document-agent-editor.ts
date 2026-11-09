@@ -125,6 +125,19 @@ export function mapSnapshot(snapshot: LocalSnapshot, tr: Transaction) {
     to: tr.mapping.map(snapshot.selection.to, -1),
   };
 }
+export function restoreAgentSelection(editor: Editor, snapshot: LocalSnapshot,
+  selection: EditorSnapshot['selection'], range: { from: number; to: number }, edits: DocumentEdit[]) {
+  if (!edits.some(edit => edit.target.kind !== 'block_range')) return;
+  const anchors = selection.region_ids.map(id => snapshot.ranges.get(id));
+  if (!range || !Number.isInteger(range.from) || !Number.isInteger(range.to) || range.from < 0 ||
+    range.to < range.from || range.to > editor.state.doc.content.size ||
+    !anchors.length || anchors.some(anchor => !anchor) ||
+    range.from < anchors[0]!.from || range.to > anchors.at(-1)!.to ||
+    editor.state.doc.textBetween(range.from, range.to, '\n') !== selection.text)
+    throw new Error('原选区无法恢复，请重新生成修改建议');
+  snapshot.selection = { ...range };
+  snapshot.wire.selection = selection;
+}
 export function registerAgentSuggestions(
   editor: Editor,
   onChange: (edits: TrackedEdit[]) => void,

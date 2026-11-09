@@ -1,6 +1,10 @@
 import { ragBaseURL, ragClient } from './rag';
+import { readSseStream } from './sse';
 import type {
   AgentEvent,
+  AgentResult,
+  AgentCitation,
+  DocumentIdentity,
   AgentMode,
   EditorSnapshot,
   ExecutionPlan,
@@ -23,6 +27,7 @@ export interface AgentRequest {
   confirmed_plan?: ExecutionPlan;
 }
 export interface AgentCapabilities {
+  graph_enabled?: boolean;
   preview?: boolean;
   enabled: boolean;
   workspace_enabled: boolean;
@@ -35,6 +40,7 @@ export interface AgentCapabilities {
     text_file_bytes: number;
     upload_mb: number;
     max_tool_calls: number;
+    max_plan_steps?: number;
     total_seconds: number;
   };
 }
@@ -54,6 +60,29 @@ export async function agentFeedback(
       document_id: documentId,
     })
   ).data;
+}
+export interface StoredAgentRun {
+  run_id: string;
+  conversation_id: string;
+  mode: AgentMode;
+  status: string;
+  payload: {
+    identity: DocumentIdentity;
+    query: string;
+    output_target: OutputTarget;
+    feedback: Record<string, string>;
+    document_id?: string;
+    error?: string;
+    delivery?: {
+      result: AgentResult;
+      citations: AgentCitation[];
+      selection: EditorSnapshot['selection'];
+      candidate_version: number;
+    };
+  };
+}
+export async function restoreAgentRun(runId: string, editorJson: Record<string, unknown>): Promise<StoredAgentRun> {
+  return (await ragClient.post(`/ai/agent/${runId}/restore`, { editor_json: editorJson })).data;
 }
 export async function streamDocumentAgent(
   input: AgentRequest,
@@ -82,21 +111,9 @@ export async function streamDocumentAgent(
     );
   }
   if (!response.body) throw new Error('未收到生成流');
-  const reader = response.body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = '';
   let terminal = false;
   let lastSeq = 0;
-  const consume = (frame: string) => {
-    const lines = frame.split('\n');
-    const event = lines
-      .find((l) => l.startsWith('event:'))
-      ?.slice(6)
-      .trim();
-    const data = lines
-      .filter((l) => l.startsWith('data:'))
-      .map((l) => l.slice(5).trimStart())
-      .join('\n');
+  await readSseStream(response.body, (event, data) => {
     if (!event || !data) return;
     const parsed = JSON.parse(data);
     if (!Number.isInteger(parsed.seq) || parsed.seq <= lastSeq)
@@ -104,23 +121,6 @@ export async function streamDocumentAgent(
     lastSeq = parsed.seq;
     if (event === 'done') terminal = true;
     onEvent({ event, data: parsed });
-  };
-  try {
-    while (true) {
-      const { value, done } = await reader.read();
-      buffer += decoder.decode(value, { stream: !done }).replace(/\r\n/g, '\n');
-      let end: number;
-      while ((end = buffer.indexOf('\n\n')) >= 0) {
-        consume(buffer.slice(0, end));
-        buffer = buffer.slice(end + 2);
-      }
-      if (done) {
-        if (buffer.trim()) consume(buffer);
-        break;
-      }
-    }
-    if (!terminal) throw new Error('连接中断，候选结果未完成，请重新生成');
-  } finally {
-    reader.releaseLock();
-  }
+  });
+  if (!terminal) throw new Error('连接中断，候选结果未完成，请重新生成');
 }

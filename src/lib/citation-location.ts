@@ -43,9 +43,9 @@ export function locateCitationRange(
     })),
   );
 
-  const segments = editorTextSegments(editor.state.doc);
+  const flattened = flattenSegments(editorTextSegments(editor.state.doc));
   for (const candidate of dedupeCandidates(candidates)) {
-    const range = findNormalizedRange(segments, candidate.text);
+    const range = findFlattenedRange(flattened, candidate.text);
     if (range) return { ...range, strategy: candidate.strategy };
   }
   return null;
@@ -73,7 +73,13 @@ export function findNormalizedRange(
   segments: CitationTextSegment[],
   candidate: string,
 ): { from: number; to: number } | null {
-  const flattened = flattenSegments(segments);
+  return findFlattenedRange(flattenSegments(segments), candidate);
+}
+
+function findFlattenedRange(
+  flattened: { text: string; positions: number[] },
+  candidate: string,
+): { from: number; to: number } | null {
   const needle = normalizeText(candidate).toLocaleLowerCase();
   if (needle.length < 8) return null;
   const index = flattened.text.toLocaleLowerCase().indexOf(needle);

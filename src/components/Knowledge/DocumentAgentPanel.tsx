@@ -32,16 +32,26 @@ import {
 import type { Editor } from '@tiptap/core';
 import AgentMarkdown from './AgentMarkdown';
 import AgentPlanEditor from './AgentPlanEditor';
-import AgentWiki from './AgentWiki';
+import AgentAnswerFeedback from './AgentAnswerFeedback';
 import { useAgentPanelSize } from './useAgentPanelSize';
 import { useNavigate } from 'react-router-dom';
 import {
   agentCapabilities,
   agentFeedback,
   streamDocumentAgent,
+  restoreAgentRun,
   type AgentCapabilities,
 } from '@/api/document-agent';
+import {
+  streamGraphDocumentAgent,
+  subscribeGraphRun,
+  listGraphRuns,
+  controlGraphRun,
+  type GraphRun,
+  type GraphResume,
+} from '@/api/document-agent-graph';
 import type {
+  AgentEvent,
   AgentCitation,
   AgentMode,
   AgentResult,
@@ -73,6 +83,7 @@ import {
   documentKey,
   mapSnapshot,
   registerAgentSuggestions,
+  restoreAgentSelection,
   setTracked,
   trackEdits,
   type LocalSnapshot,
@@ -104,6 +115,8 @@ interface Turn {
   target: OutputTarget;
   status: string;
   runId?: string;
+  graph?: GraphRun;
+  connection?: string;
   route?: string;
   steps: Record<string, { description: string; status: string }>;
   preview: string;
@@ -114,10 +127,14 @@ interface Turn {
   reflection?: string;
   createdId?: string;
   documentRejected?: boolean;
-  wikiAvailable?: boolean;
+  answerFeedback?: 'helpful' | 'incorrect';
 }
 const uid = () => crypto.randomUUID();
 const labels: Record<string, string> = {
+  queued: '等待执行',
+  running: '执行中',
+  paused: '已暂停',
+  waiting_input: '等待确认或补充',
   routing: '理解需求',
   planning: '整理计划',
   executing: '执行中',
@@ -127,6 +144,7 @@ const labels: Record<string, string> = {
   needs_input: '需要补充',
   stopped: '已停止',
   failed: '失败',
+  interrupted: '已中断',
 };
 export default function DocumentAgentPanel({
   editor,
@@ -161,7 +179,7 @@ export default function DocumentAgentPanel({
   const [busy, setBusy] = useState(false);
   const [saving, setSaving] = useState<string>();
   const controller = useRef<AbortController | null>(null);
-  const conversation = useRef(uid());
+  const conversation = useRef<string>(uid());
   const snapshot = useRef<LocalSnapshot | null>(null);
   const revision = useRef(0);
   const activeTurn = useRef<string | null>(null);
@@ -170,11 +188,206 @@ export default function DocumentAgentPanel({
   identityRef.current = identity;
   const scroll = useRef<HTMLDivElement>(null);
   const mounted = useRef(true);
+  const restoredRun = useRef<string | null>(null);
+  const graphSnapshot = useRef(false);
+  const selectionNeedsRestore = useRef(false);
+  const pendingGraphStop = useRef(false);
   const key = documentKey(identity);
   const update = (id: string, patch: Partial<Turn>) =>
     setTurns((items) =>
       items.map((t) => (t.id === id ? { ...t, ...patch } : t)),
     );
+  const handleAgentEvent =
+    (id: string, token: number, local: LocalSnapshot) =>
+    (event: AgentEvent) => {
+      if (!editor) return;
+
+      if (
+        !mounted.current ||
+        token !== generation.current ||
+        documentKey(identityRef.current) !== local.docKey
+      )
+        return;
+      const d = event.data;
+      if (event.event === 'run_started') {
+        if (d.graph && pendingGraphStop.current) {
+          pendingGraphStop.current = false;
+          void controlGraphRun(d.run_id, 'stop')
+            .then((run) => update(id, { graph: run, status: run.status }))
+            .catch((error) =>
+              message.warning(error.response?.data?.message ?? error.message),
+            );
+        }
+        restoredRun.current = d.run_id;
+        try {
+          if (!selectionNeedsRestore.current)
+            sessionStorage.setItem(
+              `livedoc:agent:last:${local.docKey}`,
+              JSON.stringify({
+                runId: d.run_id,
+                selection: local.selection,
+                graph: Boolean(d.graph),
+              }),
+            );
+          if (d.graph) graphSnapshot.current = true;
+        } catch {
+          /* The live result remains usable when browser storage is full. */
+        }
+      }
+      setTurns((items) =>
+        items.map((turn) => {
+          if (turn.id !== id) return turn;
+          let patch: Partial<Turn> = { runId: d.run_id };
+          if (event.event === 'graph_state') {
+            const state = d as unknown as GraphRun;
+            const waiting = state.waiting?.value;
+            patch = {
+              ...patch,
+              graph: state,
+              status: state.status,
+              connection: undefined,
+              error: state.payload.error,
+              ...(waiting?.type === 'plan'
+                ? {
+                    result: {
+                      kind: 'plan',
+                      plan: waiting.plan!,
+                    } as AgentResult,
+                  }
+                : {}),
+              ...(waiting?.type === 'clarification'
+                ? {
+                    result: {
+                      kind: 'clarification',
+                      question: waiting.question!,
+                      choices: waiting.choices ?? [],
+                    } as AgentResult,
+                  }
+                : {}),
+            };
+          }
+          if (event.event === 'graph_connection')
+            patch = { ...patch, connection: d.message };
+          if (event.event === 'route')
+            patch = {
+              ...patch,
+              route: d.strategy === 'react' ? '直接执行' : '分步执行',
+              status: turn.graph ? 'running' : 'executing',
+            };
+          if (event.event === 'step')
+            patch = {
+              ...patch,
+              steps: {
+                ...turn.steps,
+                [d.id ?? 'plan']: {
+                  description: d.description,
+                  status: d.status,
+                },
+              },
+              status: turn.graph ? 'running' : 'executing',
+            };
+          if (event.event === 'tool_start')
+            patch = {
+              ...patch,
+              steps: {
+                ...turn.steps,
+                [d.call_id]: {
+                  description: toolLabel(d.name),
+                  status: 'running',
+                },
+              },
+            };
+          if (event.event === 'tool_result')
+            patch = {
+              ...patch,
+              steps: {
+                ...turn.steps,
+                [d.call_id]: {
+                  description: toolLabel(d.name),
+                  status: d.status === 'success' ? 'done' : 'failed',
+                },
+              },
+              readCitations: d.citations ?? turn.readCitations,
+            };
+          if (event.event === 'delta')
+            patch = { ...patch, preview: turn.preview + d.text };
+          if (event.event === 'reflection')
+            patch = {
+              ...patch,
+              status: turn.graph ? 'running' : 'reflecting',
+              reflection: (
+                {
+                  checking: '正在检查',
+                  repairing: '正在修正',
+                  passed: '自检通过',
+                  revised: '已修正',
+                  incomplete: '自检未完成',
+                } as any
+              )[d.status],
+            };
+          if (event.event === 'result')
+            patch = {
+              ...patch,
+              result: d.result,
+              citations: d.citations ?? [],
+              createdId:
+                d.feedback?.document === 'created'
+                  ? d.result?.document_id
+                  : turn.createdId,
+              documentRejected:
+                d.feedback?.document === 'discarded' || turn.documentRejected,
+              answerFeedback: d.feedback?.answer ?? turn.answerFeedback,
+            };
+          if (event.event === 'error')
+            patch = {
+              ...patch,
+              error: d.message,
+              status: 'failed',
+              result: undefined,
+            };
+          if (event.event === 'done') patch = { ...patch, status: d.status };
+          return { ...turn, ...patch };
+        }),
+      );
+      if (event.event === 'result' && d.result?.kind === 'edits') {
+        try {
+          const edits = d.result.edits.filter(
+            (edit: any) =>
+              !['accepted', 'rejected'].includes(d.feedback?.[edit.id]),
+          );
+          if (
+            d.graph_restored &&
+            selectionNeedsRestore.current &&
+            d.selection
+          ) {
+            let saved: any;
+            try {
+              saved = JSON.parse(
+                sessionStorage.getItem(`livedoc:agent:last:${local.docKey}`) ??
+                  'null',
+              );
+            } catch {
+              /* optional */
+            }
+            restoreAgentSelection(
+              editor,
+              local,
+              d.selection,
+              saved?.selection ?? local.selection,
+              edits,
+            );
+            selectionNeedsRestore.current = false;
+          }
+          trackEdits(editor, local, edits);
+        } catch (error: any) {
+          update(id, {
+            status: 'failed',
+            error: error.message,
+            result: undefined,
+          });
+        }
+      }
+    };
   useEffect(() => {
     mounted.current = true;
     return () => {
@@ -183,12 +396,34 @@ export default function DocumentAgentPanel({
     };
   }, []);
   useEffect(() => {
+    if (!open && graphSnapshot.current) {
+      generation.current++;
+      controller.current?.abort();
+      controller.current = null;
+      setBusy(false);
+    }
+  }, [open]);
+  useEffect(() => {
     if (!editor) return;
     const unregister = registerAgentSuggestions(editor, setTrackedState);
     const transaction = ({ transaction: tr }: any) => {
       if (tr.docChanged) {
         revision.current++;
         if (snapshot.current) mapSnapshot(snapshot.current, tr);
+        if (snapshot.current && restoredRun.current) {
+          try {
+            sessionStorage.setItem(
+              `livedoc:agent:last:${snapshot.current.docKey}`,
+              JSON.stringify({
+                runId: restoredRun.current,
+                selection: snapshot.current.selection,
+                graph: graphSnapshot.current,
+              }),
+            );
+          } catch {
+            /* Recovery markers are optional when browser storage is unavailable. */
+          }
+        }
       }
     };
     editor.on('transaction', transaction);
@@ -207,8 +442,207 @@ export default function DocumentAgentPanel({
     setAttachments([]);
     conversation.current = uid();
     snapshot.current = null;
+    restoredRun.current = null;
     if (editor && !editor.isDestroyed) setTracked(editor, []);
   }, [key, editor]);
+  useEffect(() => {
+    if (!isLoggedIn) {
+      generation.current++;
+      controller.current?.abort();
+      controller.current = null;
+      setBusy(false);
+      activeTurn.current = null;
+      setTurns([]);
+      if (editor && !editor.isDestroyed) setTracked(editor, []);
+      restoredRun.current = null;
+      return;
+    }
+    if (!open || !editor || busy || capabilities?.graph_enabled) return;
+    const storageKey = `livedoc:agent:last:${key}`;
+    let marker: {
+      runId: string;
+      graph?: boolean;
+      selection: { from: number; to: number };
+    };
+    try {
+      marker = JSON.parse(sessionStorage.getItem(storageKey) ?? 'null');
+    } catch {
+      sessionStorage.removeItem(storageKey);
+      return;
+    }
+    if (!marker?.runId || marker.graph || marker.runId === restoredRun.current)
+      return;
+    const token = generation.current;
+    const baseline = JSON.stringify(editor.getJSON());
+    let live = true;
+    void restoreAgentRun(marker.runId, editor.getJSON())
+      .then((run) => {
+        if (
+          !live ||
+          token !== generation.current ||
+          editor.isDestroyed ||
+          documentKey(identityRef.current) !== key
+        )
+          return;
+        if (documentKey(run.payload.identity) !== key)
+          throw new Error('候选结果不属于当前文档');
+        const delivery = run.payload.delivery;
+        restoredRun.current = run.run_id;
+        const result = delivery?.result;
+        if (result?.kind === 'edits' && run.status === 'awaiting_review') {
+          if (JSON.stringify(editor.getJSON()) !== baseline)
+            throw new Error('正文已变化，请重新生成修改建议');
+          const local = captureSnapshot(
+            editor,
+            identityRef.current,
+            title,
+            revision.current,
+          );
+          const edits = result.edits.filter(
+            (edit) =>
+              !['accepted', 'rejected'].includes(
+                run.payload.feedback?.[edit.id],
+              ),
+          );
+          restoreAgentSelection(
+            editor,
+            local,
+            delivery.selection,
+            marker.selection,
+            edits,
+          );
+          snapshot.current = local;
+          trackEdits(editor, local, edits);
+        }
+        conversation.current = run.conversation_id;
+        activeTurn.current = run.run_id;
+        setTurns([
+          {
+            id: run.run_id,
+            runId: run.run_id,
+            query: run.payload.query,
+            mode: run.mode,
+            target: run.payload.output_target,
+            status: run.status,
+            steps: {},
+            preview: '',
+            result,
+            citations: delivery?.citations ?? [],
+            readCitations: [],
+            createdId:
+              run.payload.feedback?.document === 'created'
+                ? run.payload.document_id
+                : undefined,
+            documentRejected: run.payload.feedback?.document === 'discarded',
+            answerFeedback:
+              run.payload.feedback?.answer === 'incorrect'
+                ? 'incorrect'
+                : run.payload.feedback?.answer === 'helpful'
+                  ? 'helpful'
+                  : undefined,
+            error:
+              run.payload.error ??
+              (!delivery ? '上次任务未交付完整结果，请重新生成' : undefined),
+          },
+        ]);
+      })
+      .catch((error) => {
+        if (live && token === generation.current)
+          message.warning(
+            error.response?.data?.message ??
+              error.message ??
+              '上次结果恢复失败',
+          );
+      });
+    return () => {
+      live = false;
+    };
+  }, [open, isLoggedIn, key, editor, busy]);
+  useEffect(() => {
+    if (!open || !editor || !isLoggedIn) return;
+    let live = true;
+    const token = generation.current;
+    const abort = new AbortController();
+    void listGraphRuns(key)
+      .then(async (runs) => {
+        if (
+          !live ||
+          token !== generation.current ||
+          !runs.length ||
+          controller.current
+        )
+          return;
+        let marker: any;
+        try {
+          marker = JSON.parse(
+            sessionStorage.getItem(`livedoc:agent:last:${key}`) ?? 'null',
+          );
+        } catch {
+          /* optional */
+        }
+        if (marker?.runId && !marker.graph && !capabilities?.graph_enabled)
+          return;
+        const run = runs[0];
+        if (!run) return;
+        graphSnapshot.current = true;
+        selectionNeedsRestore.current = true;
+        const local = captureSnapshot(
+          editor,
+          identityRef.current,
+          title,
+          revision.current,
+        );
+        snapshot.current = local;
+        conversation.current = run.conversation_id;
+        restoredRun.current = run.run_id;
+        activeTurn.current = run.run_id;
+        controller.current = abort;
+        setBusy(['queued', 'running'].includes(run.status));
+        setTurns([
+          {
+            id: run.run_id,
+            runId: run.run_id,
+            graph: run,
+            query: run.payload.query,
+            mode: run.mode,
+            target: run.payload.output_target,
+            status: run.status,
+            steps: {},
+            preview: '',
+            citations: [],
+            readCitations: [],
+          },
+        ]);
+        try {
+          await subscribeGraphRun(
+            run.run_id,
+            local.wire.json,
+            handleAgentEvent(run.run_id, token, local),
+            abort.signal,
+          );
+        } catch (error: any) {
+          if (live && !abort.signal.aborted)
+            message.warning(error.response?.data?.message ?? error.message);
+        } finally {
+          if (
+            live &&
+            token === generation.current &&
+            controller.current === abort
+          ) {
+            controller.current = null;
+            setBusy(false);
+          }
+        }
+      })
+      .catch(() => {
+        /* Legacy deployments may not expose resumable tasks. */
+      });
+    return () => {
+      live = false;
+      abort.abort();
+      if (controller.current === abort) controller.current = null;
+    };
+  }, [open, key, editor, isLoggedIn, capabilities?.graph_enabled]);
   useEffect(() => {
     if (!open || !sessionStorage.getItem('token')) return;
     let live = true;
@@ -257,16 +691,17 @@ export default function DocumentAgentPanel({
     .join(',');
   useEffect(() => {
     if (!parsingIds) return;
+    const ids = parsingIds.split(',');
     let live = true;
     let timer: ReturnType<typeof setTimeout>;
     const poll = async () => {
       const results = await Promise.allSettled(
-        parsingIds.split(',').map((id) => getDocumentImport(id)),
+        ids.map((id) => getDocumentImport(id)),
       );
       if (!live) return;
       for (let i = 0; i < results.length; i++) {
         const result = results[i];
-        const id = parsingIds.split(',')[i];
+        const id = ids[i];
         if (result.status === 'fulfilled') {
           const record = result.value;
           setAttachments((items) =>
@@ -393,6 +828,7 @@ export default function DocumentAgentPanel({
   ) => {
     if (!editor) return;
     const token = ++generation.current;
+    restoredRun.current = null;
     const local = captureSnapshot(
       editor,
       identityRef.current,
@@ -400,6 +836,9 @@ export default function DocumentAgentPanel({
       revision.current,
     );
     snapshot.current = local;
+    selectionNeedsRestore.current = false;
+    graphSnapshot.current = Boolean(capabilities?.graph_enabled);
+    pendingGraphStop.current = false;
     setTracked(editor, []);
     const id = uid();
     activeTurn.current = id;
@@ -434,7 +873,10 @@ export default function DocumentAgentPanel({
               .map((a) => a.reference.doc_id!),
           };
     try {
-      await streamDocumentAgent(
+      const stream = capabilities?.graph_enabled
+        ? streamGraphDocumentAgent
+        : streamDocumentAgent;
+      await stream(
         {
           request_id: uid(),
           conversation_id: conversation.current,
@@ -449,106 +891,7 @@ export default function DocumentAgentPanel({
           template_id: template,
           confirmed_plan: confirmedPlan,
         },
-        (event) => {
-          if (
-            !mounted.current ||
-            token !== generation.current ||
-            documentKey(identityRef.current) !== local.docKey
-          )
-            return;
-          const d = event.data;
-          setTurns((items) =>
-            items.map((turn) => {
-              if (turn.id !== id) return turn;
-              let patch: Partial<Turn> = { runId: d.run_id };
-              if (event.event === 'route')
-                patch = {
-                  ...patch,
-                  route: d.strategy === 'react' ? '直接执行' : '分步执行',
-                  status: 'executing',
-                };
-              if (event.event === 'step')
-                patch = {
-                  ...patch,
-                  steps: {
-                    ...turn.steps,
-                    [d.id ?? 'plan']: {
-                      description: d.description,
-                      status: d.status,
-                    },
-                  },
-                  status: 'executing',
-                };
-              if (event.event === 'tool_start')
-                patch = {
-                  ...patch,
-                  steps: {
-                    ...turn.steps,
-                    [d.call_id]: {
-                      description: toolLabel(d.name),
-                      status: 'running',
-                    },
-                  },
-                };
-              if (event.event === 'tool_result')
-                patch = {
-                  ...patch,
-                  steps: {
-                    ...turn.steps,
-                    [d.call_id]: {
-                      description: toolLabel(d.name),
-                      status: d.status === 'success' ? 'done' : 'failed',
-                    },
-                  },
-                  readCitations: d.citations ?? turn.readCitations,
-                };
-              if (event.event === 'delta')
-                patch = { ...patch, preview: turn.preview + d.text };
-              if (event.event === 'reflection')
-                patch = {
-                  ...patch,
-                  status: 'reflecting',
-                  reflection: (
-                    {
-                      checking: '正在检查',
-                      repairing: '正在修正',
-                      passed: '自检通过',
-                      revised: '已修正',
-                      incomplete: '自检未完成',
-                    } as any
-                  )[d.status],
-                };
-              if (event.event === 'result')
-                patch = {
-                  ...patch,
-                  result: d.result,
-                  citations: d.citations ?? [],
-                  wikiAvailable: Boolean(d.wiki_available),
-                };
-              if (event.event === 'error')
-                patch = {
-                  ...patch,
-                  error: d.message,
-                  status: 'failed',
-                  result: undefined,
-                };
-              if (event.event === 'done')
-                patch = { ...patch, status: d.status };
-              return { ...turn, ...patch };
-            }),
-          );
-          if (event.event === 'result' && d.result.kind === 'edits') {
-            try {
-              trackEdits(editor, local, d.result.edits);
-            } catch (error: any) {
-              update(id, {
-                status: 'failed',
-                error: error.message,
-                result: undefined,
-              });
-            }
-          }
-        },
+        handleAgentEvent(id, token, local),
         abort.signal,
       );
     } catch (error: any) {
@@ -564,6 +907,83 @@ export default function DocumentAgentPanel({
         setBusy(false);
       }
     }
+  };
+  const resumeGraph = async (turn: Turn, input: GraphResume) => {
+    if (!editor || !turn.runId || busy) return;
+    const abort = new AbortController();
+    const token = ++generation.current;
+    const local =
+      snapshot.current ??
+      captureSnapshot(editor, identityRef.current, title, revision.current);
+    snapshot.current = local;
+    activeTurn.current = turn.id;
+    controller.current?.abort();
+    controller.current = abort;
+    setBusy(true);
+    try {
+      const run = await controlGraphRun(turn.runId, 'resume', input);
+      update(turn.id, {
+        graph: run,
+        status: run.status,
+        error: undefined,
+        result: undefined,
+      });
+      await subscribeGraphRun(
+        turn.runId,
+        local.wire.json,
+        handleAgentEvent(turn.id, token, local),
+        abort.signal,
+        run.last_seq,
+      );
+    } catch (error: any) {
+      if (!abort.signal.aborted)
+        message.warning(error.response?.data?.message ?? error.message);
+    } finally {
+      if (mounted.current && token === generation.current) {
+        controller.current = null;
+        setBusy(false);
+      }
+    }
+  };
+  const pauseGraph = async (turn: Turn) => {
+    try {
+      const run = await controlGraphRun(turn.runId!, 'pause');
+      update(turn.id, { graph: run, status: run.status });
+    } catch (error: any) {
+      message.warning(error.response?.data?.message ?? error.message);
+    }
+  };
+  const stopGraph = async (turn: Turn) => {
+    try {
+      const run = await controlGraphRun(turn.runId!, 'stop');
+      update(turn.id, { graph: run, status: run.status });
+      if (activeTurn.current === turn.id && run.status === 'stopped') {
+        controller.current?.abort();
+        controller.current = null;
+        setBusy(false);
+      }
+    } catch (error: any) {
+      message.warning(error.response?.data?.message ?? error.message);
+    }
+  };
+  const openGraphInput = (turn: Turn, action: 'revise_plan' | 'answer') => {
+    let text = '';
+    Modal.confirm({
+      title: action === 'revise_plan' ? '调整计划' : '补充回答',
+      content: (
+        <Input.TextArea
+          autoFocus
+          maxLength={4000}
+          onChange={(event) => {
+            text = event.target.value;
+          }}
+        />
+      ),
+      onOk: () => {
+        if (!text.trim()) return Promise.reject(new Error('请输入内容'));
+        return resumeGraph(turn, { action, text });
+      },
+    });
   };
   const apply = (turn: Turn, ids: string[]) => {
     if (!editor || !snapshot.current) return;
@@ -596,20 +1016,22 @@ export default function DocumentAgentPanel({
       } catch (error: any) {
         if (error.response?.status !== 404) throw error;
       }
-      if (!doc)
+      if (!doc) {
+        const markdown = documentMarkdown(result, turn.citations);
         doc = await createKnowledgeDocument({
           doc_id: result.document_id,
           title: result.title,
-          content: documentMarkdown(result, turn.citations),
+          content: markdown,
           editor_content: editor?.schema
             .nodeFromJSON(
-              editor.markdown.parse(documentMarkdown(result, turn.citations)),
+              editor.markdown.parse(markdown),
             )
             .toJSON(),
           visibility: 'private',
           source_type: 'draft',
           index_now: false,
         });
+      }
       if (result.category_id) {
         try {
           const tree = await getCategoryTree();
@@ -936,7 +1358,6 @@ export default function DocumentAgentPanel({
             </div>
           </div>
           <Space>
-            <AgentWiki authorized={isLoggedIn} disabled={busy} />
             <Tooltip title="新对话">
               <Button
                 type="text"
@@ -1016,6 +1437,58 @@ export default function DocumentAgentPanel({
                 <span>{turn.route}</span>
                 {turn.reflection && <span>{turn.reflection}</span>}
               </div>
+              {turn.graph && (
+                <Space wrap style={{ marginBottom: 8 }}>
+                  {turn.status === 'running' && (
+                    <Button
+                      size="small"
+                      aria-label="暂停任务"
+                      disabled={turn.graph.pause_requested}
+                      onClick={() => void pauseGraph(turn)}
+                    >
+                      {turn.graph.pause_requested ? '正在暂停' : '暂停'}
+                    </Button>
+                  )}
+                  {turn.graph.can_resume &&
+                    ['paused', 'interrupted'].includes(turn.status) && (
+                      <Button
+                        size="small"
+                        disabled={busy}
+                        onClick={() =>
+                          void resumeGraph(turn, { action: 'continue' })
+                        }
+                      >
+                        继续任务
+                      </Button>
+                    )}
+                  {[
+                    'queued',
+                    'running',
+                    'paused',
+                    'waiting_input',
+                    'interrupted',
+                  ].includes(turn.status) && (
+                    <Button
+                      size="small"
+                      danger
+                      onClick={() => void stopGraph(turn)}
+                    >
+                      停止任务
+                    </Button>
+                  )}
+                  {turn.status === 'waiting_input' &&
+                    turn.graph.waiting?.value.type === 'clarification' && (
+                      <Button
+                        size="small"
+                        disabled={busy}
+                        onClick={() => openGraphInput(turn, 'answer')}
+                      >
+                        补充回答
+                      </Button>
+                    )}
+                  {turn.connection && <span>{turn.connection}</span>}
+                </Space>
+              )}
               {!!Object.keys(turn.steps).length && (
                 <details className="agent-steps">
                   <summary>
@@ -1059,6 +1532,7 @@ export default function DocumentAgentPanel({
                   <Space>
                     <AgentPlanEditor
                       plan={turn.result.plan}
+                      maxSteps={capabilities?.limits.max_plan_steps ?? 5}
                       disabled={busy}
                       onSave={(plan) =>
                         update(turn.id, { result: { kind: 'plan', plan } })
@@ -1069,6 +1543,13 @@ export default function DocumentAgentPanel({
                       icon={<ListChecks size={15} />}
                       disabled={busy}
                       onClick={() => {
+                        if (turn.graph) {
+                          void resumeGraph(turn, {
+                            action: 'approve_plan',
+                            plan: (turn.result as any).plan,
+                          });
+                          return;
+                        }
                         setMode('agent');
                         void start(
                           turn.query,
@@ -1081,6 +1562,10 @@ export default function DocumentAgentPanel({
                     </Button>
                     <Button
                       onClick={() => {
+                        if (turn.graph) {
+                          openGraphInput(turn, 'revise_plan');
+                          return;
+                        }
                         setMode('plan');
                         setQuery('调整上面的计划：');
                       }}
@@ -1098,7 +1583,14 @@ export default function DocumentAgentPanel({
                       <Button
                         key={choice}
                         disabled={busy}
-                        onClick={() => void start(choice)}
+                        onClick={() =>
+                          turn.graph
+                            ? void resumeGraph(turn, {
+                                action: 'answer',
+                                text: choice,
+                              })
+                            : void start(choice)
+                        }
                       >
                         {choice}
                       </Button>
@@ -1134,15 +1626,13 @@ export default function DocumentAgentPanel({
               )}
               {turn.result?.kind === 'answer' && (
                 <Space wrap>
-                  <AgentWiki
-                    authorized={isLoggedIn}
-                    runId={turn.runId}
-                    answer={turn.result.answer}
-                    available={
-                      turn.wikiAvailable && turn.status === 'completed'
-                    }
-                    disabled={busy}
-                  />
+                  {turn.runId && turn.status === 'completed' && (
+                    <AgentAnswerFeedback
+                      runId={turn.runId}
+                      disabled={!isLoggedIn}
+                      initialValue={turn.answerFeedback}
+                    />
+                  )}
                   <Button
                     type="text"
                     onClick={() => {
@@ -1649,7 +2139,17 @@ export default function DocumentAgentPanel({
                     aria-label="停止"
                     title="停止"
                     icon={<Square size={13} />}
-                    onClick={() => controller.current?.abort()}
+                    onClick={() => {
+                      const turn = turns.find(
+                        (t) => t.id === activeTurn.current,
+                      );
+                      if (turn?.graph) void stopGraph(turn);
+                      else {
+                        if (graphSnapshot.current)
+                          pendingGraphStop.current = true;
+                        controller.current?.abort();
+                      }
+                    }}
                   />
                 ) : (
                   <Button
@@ -1680,6 +2180,7 @@ function toolLabel(name: string) {
       {
         read_current_document: '读取当前正文',
         read_reference: '读取参考资料',
+        read_knowledge_document: '追读知识文档',
         search_knowledge_base: '检索知识库',
         list_templates: '查找模板',
         read_template: '读取模板',

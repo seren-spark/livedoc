@@ -13,6 +13,7 @@ import {
   currentTracked,
   mapSnapshot,
   registerAgentSuggestions,
+  restoreAgentSelection,
   trackEdits,
 } from './document-agent-editor';
 import type {
@@ -48,6 +49,44 @@ function edit(id: string, region: string, text: string): DocumentEdit {
 }
 afterEach(() => editors.splice(0).forEach((e) => e.destroy()));
 describe('document agent transactions', () => {
+  it('restores selection edits to the original range after the current cursor has moved', () => {
+    const editor = setup('first paragraph');
+    editor.commands.setTextSelection({ from: 1, to: 6 });
+    const original = captureSnapshot(editor, identity, '', 0);
+    const suggestion: DocumentEdit = { ...edit('selection', 'b0', 'updated'), target: { kind: 'selection' } };
+    editor.commands.setTextSelection(10);
+    const restored = captureSnapshot(editor, identity, '', 0);
+    restoreAgentSelection(editor, restored, original.wire.selection, original.selection, [suggestion]);
+    trackEdits(editor, restored, [suggestion]);
+    applySuggestions(editor, ['selection'], identity, restored);
+    expect(editor.getText()).toBe('updated paragraph');
+  });
+  it('rejects a restored selection whose original text no longer matches', () => {
+    const editor = setup('first paragraph');
+    const local = captureSnapshot(editor, identity, '', 0);
+    const suggestion: DocumentEdit = { ...edit('selection', 'b0', 'updated'), target: { kind: 'selection' } };
+    expect(() => restoreAgentSelection(editor, local, { ...local.wire.selection, text: 'old text' },
+      { from: 1, to: 6 }, [suggestion])).toThrow('原选区无法恢复');
+  });
+  it('recovers an inline suggestion after accepting an earlier block edit shifted its position', () => {
+    const editor = setup('first\n\nhello world');
+    editor.commands.setTextSelection({ from: 8, to: 13 });
+    const original = captureSnapshot(editor, identity, '', 0);
+    editor.on('transaction', ({ transaction }) => mapSnapshot(original, transaction));
+    const inline: DocumentEdit = { ...edit('inline', 'b1', 'Hi'), target: { kind: 'selection' } };
+    trackEdits(editor, original, [edit('first', 'b0', 'changed\n\nadded'), inline]);
+    applySuggestions(editor, ['first'], identity, original);
+    const restored = captureSnapshot(editor, identity, '', 1);
+    restoreAgentSelection(editor, restored, { ...original.wire.selection, region_ids: ['b2'] }, original.selection, [inline]);
+    trackEdits(editor, restored, [inline]);
+    applySuggestions(editor, ['inline'], identity, restored);
+    expect(editor.getText()).toContain('Hi world');
+    expect(editor.getText()).toContain('added');
+    const wrong = captureSnapshot(editor, identity, '', 2);
+    expect(() => restoreAgentSelection(editor, wrong, { ...wrong.wire.selection, text: '', region_ids: ['b0'] },
+      { from: editor.state.doc.content.size - 1, to: editor.state.doc.content.size - 1 },
+      [{ ...inline, target: { kind: 'cursor' } }])).toThrow('原选区无法恢复');
+  });
   it('preserves generated tables and highlights through adoption, save and markdown reload', () => {
     const editor = setup('old');
     const snapshot = captureSnapshot(editor, identity, '', 0);

@@ -385,20 +385,35 @@ export function useKnowledgeDocumentSession(editor: Editor | null) {
 
       let prepared: Awaited<ReturnType<typeof prepareContent>> | undefined;
 
+      const completeDocumentSave = async (record: DocumentRecord, successMessage: string) => {
+        setDocumentRecord(record);
+        expectedVersion.current = record.document_version;
+        clearRecoveryDraft(record.doc_id);
+        setSaveState('saved');
+        try {
+          await reindexKnowledgeDocument(record.doc_id);
+          message.success(successMessage);
+        } catch (indexError) {
+          console.error(indexError);
+          message.warning('正文已经保存，但索引任务启动失败，请在知识库中重新索引');
+        }
+      };
+
       try {
         // 3. 准备内容(上传图片、生成 Markdown)
         prepared = await prepareContent();
+        const content = {
+          title: title.trim(),
+          content: prepared.markdown,
+          editor_content: prepared.editorContent,
+          asset_ids: prepared.assetIds,
+        };
 
         // ========== 分支 1: 导入文档(importId 存在) ==========
         if (importId) {
           try {
             // 1. 更新导入记录
-            await updateDocumentImport(importId, {
-              title: title.trim(),
-              content: prepared.markdown,
-              editor_content: prepared.editorContent,
-              asset_ids: prepared.assetIds,
-            });
+            await updateDocumentImport(importId, content);
           } catch (importUpdateError) {
             // 2. 处理 409 冲突(导入已确认)
             if ((importUpdateError as any)?.response?.status !== 409) {
@@ -421,31 +436,13 @@ export function useKnowledgeDocumentSession(editor: Editor | null) {
             const record = await updateKnowledgeDocument(
               currentImport.document_id,
               {
-                title: title.trim(),
-                content: prepared.markdown,
-                editor_content: prepared.editorContent,
-                asset_ids: prepared.assetIds,
+                ...content,
                 expected_version: latest.document_version, // 使用最新版本号
               },
             );
 
-            // 5. 更新本地状态
-            setDocumentRecord(record);
-            expectedVersion.current = record.document_version;
             setImportRecord(currentImport);
-            clearRecoveryDraft(record.doc_id);
-            setSaveState('saved');
-
-            // 6. 触发索引任务
-            try {
-              await reindexKnowledgeDocument(record.doc_id);
-              message.success('导入已确认，当前修改已直接保存到正式文档');
-            } catch (indexError) {
-              console.error(indexError);
-              message.warning(
-                '正文已经保存，但索引任务启动失败，请在知识库中重新索引',
-              );
-            }
+            await completeDocumentSave(record, '导入已确认，当前修改已直接保存到正式文档');
 
             // 7. 跳转到正式文档
             navigate(
@@ -493,39 +490,18 @@ export function useKnowledgeDocumentSession(editor: Editor | null) {
         if (docId) {
           // 1. 更新文档(使用乐观锁)
           const record = await updateKnowledgeDocument(docId, {
-            title: title.trim(),
-            content: prepared.markdown,
-            editor_content: prepared.editorContent,
-            asset_ids: prepared.assetIds,
+            ...content,
             expected_version:
               expectedVersion.current ?? documentRecord?.document_version,
           });
 
-          // 2. 更新本地状态
-          setDocumentRecord(record);
-          expectedVersion.current = record.document_version;
-          clearRecoveryDraft(docId);
-          setSaveState('saved');
-
-          // 3. 触发索引任务
-          try {
-            await reindexKnowledgeDocument(docId);
-            message.success('文档已保存并发起索引');
-          } catch (indexError) {
-            console.error(indexError);
-            message.warning(
-              '正文已经保存，但索引任务启动失败，请在知识库中重新索引',
-            );
-          }
+          await completeDocumentSave(record, '文档已保存并发起索引');
           return;
         }
 
         // ========== 分支 3: 新建文档 ==========
         const record = await createKnowledgeDocument({
-          title: title.trim(),
-          content: prepared.markdown,
-          editor_content: prepared.editorContent,
-          asset_ids: prepared.assetIds,
+          ...content,
           visibility: defaults.visibility, // 可见性
           source_type:
             // 根据 visibility 映射 source_type
@@ -580,22 +556,7 @@ export function useKnowledgeDocumentSession(editor: Editor | null) {
                 latest.title === title.trim() &&
                 latest.content === prepared.markdown
               ) {
-                setDocumentRecord(latest);
-                expectedVersion.current = latest.document_version;
-                clearRecoveryDraft(docId);
-                setSaveState('saved');
-
-                try {
-                  await reindexKnowledgeDocument(docId);
-                  message.success(
-                    '正文此前已保存，已同步最新版本并重新发起索引',
-                  );
-                } catch (indexError) {
-                  console.error(indexError);
-                  message.warning(
-                    '正文已经保存，但索引任务启动失败，请在知识库中重新索引',
-                  );
-                }
+                await completeDocumentSave(latest, '正文此前已保存，已同步最新版本并重新发起索引');
                 return;
               }
 
@@ -612,20 +573,7 @@ export function useKnowledgeDocumentSession(editor: Editor | null) {
                   expected_version: latest.document_version,
                 });
 
-                setDocumentRecord(retried);
-                expectedVersion.current = retried.document_version;
-                clearRecoveryDraft(docId);
-                setSaveState('saved');
-
-                try {
-                  await reindexKnowledgeDocument(docId);
-                  message.success('已同步服务器最新版本并保存当前内容');
-                } catch (indexError) {
-                  console.error(indexError);
-                  message.warning(
-                    '正文已经保存，但索引任务启动失败，请在知识库中重新索引',
-                  );
-                }
+                await completeDocumentSave(retried, '已同步服务器最新版本并保存当前内容');
                 return;
               }
             } catch (refreshError) {
@@ -650,7 +598,9 @@ export function useKnowledgeDocumentSession(editor: Editor | null) {
     },
     [
       defaults,
+      categoryId,
       docId,
+      documentRecord,
       editor,
       importId,
       isKnowledgeMode,
@@ -752,9 +702,6 @@ function focusStoredCitation(
     if (range) {
       // 设置选区并滚动到视图
       editor.chain().focus().setTextSelection(range).scrollIntoView().run();
-    }
-
-    if (range) {
       message.success(
         range.strategy === 'source_offset'
           ? '已按来源位置定位并高亮引用原文'

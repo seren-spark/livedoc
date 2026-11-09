@@ -6,10 +6,12 @@ import type { ExecutionPlan } from '@/api/document-agent.types';
 export default function AgentPlanEditor({
   plan,
   disabled,
+  maxSteps = 5,
   onSave,
 }: {
   plan: ExecutionPlan;
   disabled: boolean;
+  maxSteps?: number;
   onSave: (plan: ExecutionPlan) => void;
 }) {
   const [open, setOpen] = useState(false);
@@ -22,6 +24,10 @@ export default function AgentPlanEditor({
       .map((line) => line.trim())
       .filter(Boolean);
   const save = () => {
+    if (draft.steps.length > maxSteps) {
+      message.warning(`当前最多支持 ${maxSteps} 步，请合并步骤`);
+      return;
+    }
     if (
       !draft.goal.trim() ||
       draft.steps.some((step) => !step.description.trim())
@@ -103,7 +109,7 @@ export default function AgentPlanEditor({
             autoSize={{ minRows: 2, maxRows: 6 }}
           />
           <label>
-            执行步骤 <small>按列表顺序执行，最多 5 步</small>
+            执行步骤 <small>按列表顺序执行，最多 {maxSteps} 步</small>
           </label>
           {draft.steps.map((step, index) => (
             <div className="agent-plan-editor-step" key={step.id}>
@@ -179,7 +185,7 @@ export default function AgentPlanEditor({
           <Button
             type="dashed"
             icon={<Plus size={14} />}
-            disabled={draft.steps.length >= 5}
+            disabled={draft.steps.length >= maxSteps}
             onClick={() =>
               setDraft({
                 ...draft,

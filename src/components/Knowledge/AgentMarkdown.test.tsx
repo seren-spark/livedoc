@@ -6,6 +6,25 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import AgentMarkdown from './AgentMarkdown';
 
 describe('agent formatted preview', () => {
+  it('renders known prefixed citation markers while preserving escaped, unknown and code markers', () => {
+    const citation = { id: 'kb-doc:1:chunk', title: '原始来源', kind: 'document' as const };
+    const html = renderToStaticMarkup(<AgentMarkdown citations={[citation]} onCitationClick={() => {}}>
+      {'事实 [citation_id:kb-doc:1:chunk]。另见 [kb-doc:1:chunk]。\\[citation_id:kb-doc:1:chunk]\n\n`[citation_id:kb-doc:1:chunk]`\n\n[citation_id:unknown]'}
+    </AgentMarkdown>);
+    expect(html.match(/class="agent-citation"/g)).toHaveLength(2);
+    expect(html).toContain('aria-label="查看来源：原始来源"');
+    expect(html).toContain('<code>[citation_id:kb-doc:1:chunk]</code>');
+    expect(html).toContain('[citation_id:unknown]');
+  });
+  it('hides only standalone protocol footers with fully known adopted references', () => {
+    const citation = { id: 'ref-first', title: '原始来源', kind: 'text' as const };
+    const html = renderToStaticMarkup(<AgentMarkdown citations={[citation]}>
+      {'正文。\n\n[citation_ids=["ref-first"]]\n\n[citation_ids=["unknown"]]\n\n`[citation_ids=["ref-first"]]`'}
+    </AgentMarkdown>);
+    expect(html).not.toContain('<p>[citation_ids=[&quot;ref-first&quot;]]</p>');
+    expect(html).toContain('[citation_ids=[&quot;unknown&quot;]]');
+    expect(html).toContain('<code>[citation_ids=[&quot;ref-first&quot;]]</code>');
+  });
   it('opens the evidence associated with a clicked citation', async () => {
     const container = document.createElement('div');
     const root = createRoot(container);

@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { readSseStream } from './sse';
 
 export const ragBaseURL =
   import.meta.env.VITE_RAG_API_BASE_URL || 'http://127.0.0.1:8001';
@@ -628,20 +629,7 @@ export async function streamAiWrite(
     throw new Error('浏览器未提供流式响应');
   }
 
-  const reader = response.body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = '';
-
-  const processFrame = (frame: string) => {
-    let eventName = 'message';
-    const dataLines: string[] = [];
-    frame.split('\n').forEach((line) => {
-      if (line.startsWith('event:')) eventName = line.slice(6).trim();
-      if (line.startsWith('data:')) dataLines.push(line.slice(5).trimStart());
-    });
-    if (!dataLines.length) return;
-
-    const raw = dataLines.join('\n');
+  await readSseStream(response.body, (eventName = 'message', raw) => {
     const data = JSON.parse(raw);
     if (eventName === 'tool_start' || eventName === 'tool_call') {
       handlers.onToolCall?.(data as AgentToolCall);
@@ -676,20 +664,7 @@ export async function streamAiWrite(
     if (eventName === 'error') {
       handlers.onError(data?.message || '生成失败，请稍后重试');
     }
-  };
-
-  while (true) {
-    const { done, value } = await reader.read();
-    buffer += decoder.decode(value, { stream: !done }).replace(/\r\n/g, '\n');
-    let boundary = buffer.indexOf('\n\n');
-    while (boundary >= 0) {
-      processFrame(buffer.slice(0, boundary));
-      buffer = buffer.slice(boundary + 2);
-      boundary = buffer.indexOf('\n\n');
-    }
-    if (done) break;
-  }
-  if (buffer.trim()) processFrame(buffer);
+  }, 'last');
 }
 
 export async function loginDemoUser(email: string, password: string) {
