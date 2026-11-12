@@ -1,43 +1,27 @@
-# 分页编辑器实现完成
+# 分页编辑器实现说明
 
-## ✅ 已完成的工作
+基于 IndexedDB 与占位符的分页实验。`draft-page.tsx` **已被 `vite.config.ts` 排除出自动路由**，没有默认入口。
+
+正式写作页 `/editor/draft` 接入后端保存与 Agent；分页实验使用独立本地存储。
+
+## 现有实现
 
 ### 核心组件
 
-1. **PageBreak 扩展** (`extensions/PageBreak.ts`)
-   - 页面分隔标记节点
-   - 不可见的原子节点
-   - 携带页码信息
-
-2. **存储层** (`storage/PagedDocStorage.ts`)
-   - IndexedDB 数据库封装
-   - 文档元数据管理
-   - 页面内容存储
-   - 目录索引存储
-
-3. **目录索引管理器** (`managers/TOCIndexManager.ts`)
-   - 独立的目录索引
-   - 标题提取和更新
-   - 跨页目录跳转支持
-
-4. **分页编辑器管理器** (`managers/PagedEditorManager.ts`)
-   - 页面动态加载/卸载
-   - 滚动监听和页面切换
-   - 自动保存脏页
-   - 选区边界检查
-
-5. **文档转换工具** (`utils/DocumentConverter.ts`)
-   - 完整文档 → 分页格式
-   - 分页格式 → 完整文档
-   - 统计信息查询
+| 组件                                                 | 职责                                       |
+| ---------------------------------------------------- | ------------------------------------------ |
+| [PageBreak](extensions/PageBreak.ts)                 | 原子边界节点，保存页码、占位状态与高度     |
+| [PagedDocStorage](storage/PagedDocStorage.ts)        | IndexedDB 文档元数据、页面 JSON 与目录索引 |
+| [TOCIndexManager](managers/TOCIndexManager.ts)       | 独立目录、标题更新与页内位置               |
+| [PagedEditorManager](managers/PagedEditorManager.ts) | 可见页切换、占位替换、缓存与脏页保存       |
+| [DocumentConverter](utils/DocumentConverter.ts)      | 按顶级节点分块、还原全文、统计与删除       |
 
 ### 支持文件
 
-- **CSS 样式** (`styles/paged-editor.css`)
-- **使用示例** (`examples/paged-editor-usage.tsx`)
-- **完整文档** (`docs/paged-editor-guide.md`)
-
----
+- [分页样式](styles/paged-editor.css)
+- [集成示例](examples/paged-editor-usage.tsx)
+- [演示组件](draft-page.tsx)
+- [设计与使用指南](../../../docs/paged-editor-guide.md)
 
 ## 🚀 快速开始
 
@@ -46,16 +30,14 @@
 ```typescript
 import { DocumentConverter } from '@/pages/editor/utils/DocumentConverter';
 
-// 将当前编辑器中的文档转换为分页格式
-await DocumentConverter.convertToPagedDocument(
-  editor, // 现有的 TipTap 编辑器实例
-  'doc-001', // 文档 ID
-  '我的文档', // 文档标题
-  5000, // 每页字数（可选，默认 5000）
-);
+await DocumentConverter.convertToPagedDocument(editor, 'doc-001', '我的文档', 5000);
 ```
 
+完整 JSON 按顶级节点文本长度划页后存入 IndexedDB。5000 为目标字符数，大节点不再拆分，可能超限。
+
 ### 2. 使用分页编辑器
+
+先完成转换，再挂载编辑器；滚动容器须为 `#tiptap`，供管理器绑定监听。
 
 ```typescript
 import { Editor } from '@tiptap/core';
@@ -64,239 +46,160 @@ import { PageBreak } from '@/pages/editor/extensions/PageBreak';
 import { PagedEditorManager } from '@/pages/editor/managers/PagedEditorManager';
 import '@/pages/editor/styles/paged-editor.css';
 
-// 创建编辑器
-const editor = new Editor({
-  extensions: [
-    StarterKit,
-    PageBreak, // 必须添加
-  ],
-  content: '', // 初始为空
+const pagedEditor = new Editor({
+  extensions: [StarterKit, PageBreak],
+  content: '',
 });
-
-// 创建分页管理器
-const manager = new PagedEditorManager(editor, 'doc-001');
-
-// 初始化（加载第一页）
+const manager = new PagedEditorManager(pagedEditor, 'doc-001');
 await manager.init(1);
 
-// 清理
+// 在组件清理时调用。
 manager.destroy();
-editor.destroy();
+pagedEditor.destroy();
 ```
+
+`init()` 加载当前及相邻页，其余页使用高度占位符。富文本配置见 `editorConfig-page.ts`。
 
 ### 3. 目录跳转
 
 ```typescript
-// 获取目录项
-const tocItems = manager.tocManager.getItems();
-
-// 跳转到指定标题
-await manager.scrollToHeading(itemId);
+const items = manager.getTocForPage(1);
+if (items[0]) await manager.scrollToHeading(items[0].id);
 ```
 
----
+通过公开方法获取目录；`tocManager` 为私有成员。跳转先加载目标页，找不到标题时定位页顶部。
 
 ## 📊 架构对比
 
 ### 当前 CSS 虚拟化（已有实现）
 
-```
-✅ 优点：
-- 稳定可靠
-- 编辑体验完美
-- 实现简单
-
-❌ 缺点：
-- DOM 节点全部在内存（~2000 节点）
-- 内存占用较高（~100MB）
-- 上限约 10 万字
-```
+默认页使用 `VirtualScroll`、Decoration 与 `content-visibility` 降低屏外渲染开销，ProseMirror 仍保留全文，用于编辑、保存和 Agent 快照。容量取决于内容与设备。
 
 ### 分页加载（新实现）
 
-```
-✅ 优点：
-- 内存占用低（只保持 3-5 页）
-- 真正的 DOM 卸载
-- 支持无限长文档
-
-❌ 缺点：
-- 实现复杂
-- 需要独立的目录索引
-- 跨页操作需要特殊处理
-```
-
----
+保留页边界占位，按当前页 ± 1 页渲染正文，切换时保存脏页、替换内容并测量高度。需独立目录和全文还原；跨页编辑与正式 Agent 接入待联调。
 
 ## 🎯 使用场景建议
 
-| 文档规模       | 推荐方案               |
-| -------------- | ---------------------- |
-| **< 10 万字**  | CSS 虚拟化（当前实现） |
-| **10-50 万字** | **分页加载**（新实现） |
-| **> 50 万字**  | 分页加载 + 服务端优化  |
-
----
+| 场景                         | 当前选择                            |
+| ---------------------------- | ----------------------------------- |
+| 知识文档、文章与 Agent 写作  | 使用正式 `/editor/draft`            |
+| 本地长文分页、占位与缓存实验 | 参考 `draft-page.tsx`，自行集成入口 |
+| 超长文档性能评估             | 实测加载、滚动、内存与保存          |
 
 ## 📁 文件结构
 
-```
+```text
 src/pages/editor/
+├── draft.tsx                     # 正式写作页
+├── draft-page.tsx                # 分页实验组件，排除自动路由
+├── config/editorConfig-page.ts   # 分页实验使用的富文本配置
 ├── extensions/
-│   ├── PageBreak.ts              # 页面分隔节点
-│   └── VirtualScroll.ts          # CSS 虚拟化（现有）
-├── storage/
-│   └── PagedDocStorage.ts        # IndexedDB 存储
+│   ├── PageBreak.ts              # 页边界与占位节点
+│   └── VirtualScroll.ts          # CSS 渲染优化
+├── storage/PagedDocStorage.ts    # 浏览器本地存储
 ├── managers/
-│   ├── TOCIndexManager.ts        # 目录索引管理
-│   └── PagedEditorManager.ts     # 分页逻辑核心
-├── utils/
-│   └── DocumentConverter.ts      # 文档转换工具
-├── styles/
-│   └── paged-editor.css          # 样式
-├── examples/
-│   └── paged-editor-usage.tsx    # 使用示例
-└── README-PAGED-EDITOR.md        # 本文档
+│   ├── TOCIndexManager.ts        # 独立目录
+│   └── PagedEditorManager.ts     # 页面切换、缓存与保存
+├── utils/DocumentConverter.ts    # 分页与全文转换
+├── styles/paged-editor.css
+├── examples/paged-editor-usage.tsx
+└── README-PAGED-EDITOR.md
 
-docs/
-└── paged-editor-guide.md         # 完整使用指南
+docs/paged-editor-guide.md         # 设计与使用指南
 ```
-
----
 
 ## 🔧 配置选项
 
 ### 页面大小
 
+在转换时传入 `pageSize`，默认值位于 `DocumentConverter.ts`：
+
 ```typescript
-// 在 PagedEditorManager.ts 中
-const PAGE_SIZE_LIMIT = 5000; // 每页约 5000 字
+await DocumentConverter.convertToPagedDocument(editor, 'doc-001', '文档', 5000);
 ```
+
+仅用于初次划页；管理器没有 `PAGE_SIZE_LIMIT`。
 
 ### 同时保持的页数
 
+`PagedEditorManager.ts` 的现有常量为：
+
 ```typescript
-// 在 PagedEditorManager.ts 中
-const PAGES_TO_KEEP = 3; // 当前页 ± 1
+const BUFFER_PAGES = 1; // 当前页及前后各一页
+const MAX_CACHED_PAGES = 10; // 页面数据缓存清理阈值
+const ESTIMATED_PAGE_HEIGHT = 8000; // 未测量页的预估高度（px）
 ```
+
+渲染范围与数据缓存不同，选区、脏页和切换状态影响清理。
 
 ### 自动保存延迟
 
-```typescript
-// 在 scheduleAutoSave 方法中
-this.autoSaveTimer = window.setTimeout(() => {
-  this.autoSave();
-}, 2000); // 2 秒
-```
-
----
+`scheduleAutoSave()` 防抖 2000 ms，保存脏页与标题。`destroy()` 发起保存但不等待异步完成；离开前核对结果。本地写入不自动同步后端。
 
 ## ⚠️ 关键注意事项
 
 ### ✅ 必须做到
 
-1. **页面边界清晰**：使用 PageBreak 节点标记
-2. **目录独立存储**：不依赖当前加载的文档
-3. **脏页及时保存**：卸载前强制保存
-4. **保留足够缓冲**：始终保持当前页 ± 1 页
-5. **防止选区跨页卸载**：检查选区范围
+- 用 `PageBreak` 标记边界，维护独立目录。
+- 替换内容前保存脏页，核对选区。
+- 提交全文前用 `DocumentConverter.convertToFullDocument(docId)` 还原。
+- 验证滚动、跨页编辑与保存。
 
 ### ❌ 绝对不要做
 
-1. **在编辑时卸载该页**：会丢失用户输入
-2. **频繁加载/卸载**：性能差，体验差
-3. **不保存就卸载脏页**：数据丢失
-4. **目录依赖 doc 遍历**：只能看到已加载的标题
-5. **跨页选区时卸载**：选区会断裂
-
----
+- 将占位 JSON 当作全文上传。
+- 从可见正文推导全局目录。
+- 将本地写入视为后端保存。
+- 将容量设想写成验收结论。
 
 ## 🧪 测试步骤
 
 ### 1. 转换测试文档
 
-```typescript
-// 使用现有的大文档进行测试
-import { DocumentConverter } from './utils/DocumentConverter';
+用包含标题、长段落、表格和图片的测试内容，按较小页面划分：
 
-await DocumentConverter.convertToPagedDocument(
-  editor,
-  'test-doc',
-  '测试文档',
-  3000, // 使用较小的页面便于测试
-);
+```typescript
+await DocumentConverter.convertToPagedDocument(editor, 'test-doc', '测试文档', 3000);
 ```
 
 ### 2. 查看转换结果
 
 ```typescript
 const stats = await DocumentConverter.getDocumentStats('test-doc');
-console.log(stats);
-// 输出：{ totalPages: 5, totalWords: 15000, totalHeadings: 20, ... }
+const fullDoc = await DocumentConverter.convertToFullDocument('test-doc');
+console.log(stats, fullDoc);
 ```
+
+核对页数、标题与还原正文。
 
 ### 3. 测试分页编辑器
 
-```typescript
-const pagedEditor = new Editor({
-  extensions: [StarterKit, PageBreak],
-});
+用 `test-doc` 初始化管理器，依次验证：
 
-const manager = new PagedEditorManager(pagedEditor, 'test-doc');
-await manager.init(1);
-
-// 滚动测试页面加载/卸载
-// 编辑测试自动保存
-// 目录跳转测试
-```
-
----
+1. 滚动切换时真实内容与占位符替换。
+2. 编辑后等待自动保存，重新初始化并核对内容。
+3. 跨页标题跳转、跨页选区与撤销。
+4. 全文还原后表格、图片、公式及标题是否保留。
 
 ## 🐛 调试
 
 ### 查看控制台日志
 
-所有组件都包含详细的 console.log：
-
-- `[PagedEditor]` - 管理器日志
-- `[DocumentConverter]` - 转换日志
-- `[TOCIndexManager]` - 目录日志
+按 `[PagedEditor]`、`[DocumentConverter]`、`[TOCIndexManager]` 筛选日志。
 
 ### 查看 IndexedDB 数据
 
-1. 打开浏览器开发者工具
-2. Application → Storage → IndexedDB
-3. 找到 `PagedDocuments` 数据库
-4. 查看 `documents`、`pages`、`tocIndexes` 表
+开发者工具 → Application → IndexedDB → `PagedDocuments`，检查 `documents / pages / tocIndexes`。数据仅属于当前浏览器来源。
 
 ### 开启调试模式
 
-在 PageBreak 节点上添加 `data-debug="true"` 属性会显示页面分隔线。
-
----
+在开发者工具中给 `.page-break-marker` 添加 `data-debug="true"` 查看边界；它是调试 DOM 属性，不是已声明的节点属性。
 
 ## 📖 完整文档
 
-详细的使用指南、API 文档和边界情况处理请查看：
-**`docs/paged-editor-guide.md`**
-
----
+[设计指南](../../../docs/paged-editor-guide.md)提供背景；API 与配置以源码为准。
 
 ## 🎉 总结
 
-分页编辑器方案已经**完全实现**，包括：
-
-- ✅ 所有核心组件
-- ✅ 存储层和数据模型
-- ✅ 文档转换工具
-- ✅ 使用示例和完整文档
-
-**适用场景**：10-50 万字的超大文档
-
-**下一步**：
-
-1. 在实际项目中测试
-2. 根据反馈优化性能
-3. 添加更多边界情况处理
-
-如有问题，请查看 `docs/paged-editor-guide.md` 中的详细说明。
+分页方案为独立实验；正式业务接入前需完成全文保存、Agent 快照及跨页编辑联调。
