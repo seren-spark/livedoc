@@ -22,14 +22,22 @@ export interface GraphRun {
   waiting?: {
     id: string;
     value: {
-      type: 'plan' | 'clarification';
+      type: 'plan' | 'clarification' | 'retry';
       plan?: ExecutionPlan;
       plan_version?: number;
       question?: string;
       choices?: string[];
+      failures?: {
+        step_id: string;
+        code: string;
+        message: string;
+        retryable: boolean;
+      }[];
     };
   } | null;
   payload: {
+    research_workflow?: boolean;
+    research_completeness?: 'complete' | 'partial';
     identity: DocumentIdentity;
     query: string;
     output_target: OutputTarget;

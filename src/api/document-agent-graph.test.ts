@@ -150,4 +150,75 @@ describe('resumable agent event transport', () => {
       }),
     );
   });
+
+  it('replays verification and replanning events and preserves the retry reason', async () => {
+    const running = {
+      run_id: 'run',
+      status: 'running',
+      last_seq: 0,
+      payload: {},
+    };
+    const interrupted = {
+      ...running,
+      status: 'interrupted',
+      last_seq: 2,
+      can_resume: true,
+      waiting: {
+        id: 'verify-retry',
+        value: {
+          type: 'retry',
+          failures: [
+            {
+              step_id: 'verify',
+              code: 'MODEL_TIMEOUT',
+              message: '核验请求超时',
+              retryable: true,
+            },
+          ],
+        },
+      },
+    };
+    const progress = (seq: number, event: string, data: object) =>
+      `event: ${event}\ndata: ${JSON.stringify({ run_id: 'run', seq, ...data })}\n\n`;
+    const verification = progress(1, 'verification', {
+      status: 'rechecking',
+      candidate_version: 1,
+    });
+    const replanning = progress(2, 'replanning', {
+      invalidated_steps: ['compose'],
+      reused_steps: ['read'],
+      plan_version: 2,
+    });
+    mocks.get
+      .mockResolvedValueOnce({ data: running })
+      .mockResolvedValueOnce({ data: interrupted });
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValue(response([verification, verification, replanning])),
+    );
+    const received: any[] = [];
+    await subscribeGraphRun(
+      'run',
+      {},
+      (event) => received.push(event),
+      new AbortController().signal,
+    );
+    expect(
+      received.filter((event) => event.event === 'verification'),
+    ).toHaveLength(1);
+    expect(
+      received.find((event) => event.event === 'verification').data,
+    ).toMatchObject({ status: 'rechecking', candidate_version: 1 });
+    expect(
+      received.find((event) => event.event === 'replanning').data,
+    ).toMatchObject({ invalidated_steps: ['compose'], reused_steps: ['read'] });
+    expect(
+      received.filter((event) => event.event === 'graph_state').at(-1).data
+        .waiting,
+    ).toEqual(interrupted.waiting);
+    expect(mocks.post).not.toHaveBeenCalled();
+    expect(mocks.restore).not.toHaveBeenCalled();
+  });
 });

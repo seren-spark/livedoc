@@ -31,8 +31,20 @@ import {
 } from 'lucide-react';
 import type { Editor } from '@tiptap/core';
 import AgentMarkdown from './AgentMarkdown';
+import AgentResearchProgress, {
+  type ResearchProgress,
+} from './AgentResearchProgress';
+import type { ResearchBrief, ResearchCoverage } from '@/api/agent-research';
 import AgentPlanEditor from './AgentPlanEditor';
 import AgentAnswerFeedback from './AgentAnswerFeedback';
+import AgentVerificationProgress from './AgentVerificationProgress';
+import AgentSkillPicker, { AgentSkillSuggestions } from './AgentSkillPicker';
+import AgentPreferencesDrawer from './AgentPreferencesDrawer';
+import {
+  getWritingSkill,
+  type SkillSelection,
+  type WritingSkillSummary,
+} from '@/api/agent-skills';
 import { useAgentPanelSize } from './useAgentPanelSize';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -59,6 +71,8 @@ import type {
   ExecutionPlan,
   OutputTarget,
   ReferenceInput,
+  AgentVerification,
+  AgentReplanning,
 } from '@/api/document-agent.types';
 import {
   createKnowledgeDocument,
@@ -125,6 +139,15 @@ interface Turn {
   readCitations: AgentCitation[];
   error?: string;
   reflection?: string;
+  verification?: AgentVerification;
+  researchEnabled?: boolean;
+  researchBrief?: ResearchBrief;
+  researchCoverage?: ResearchCoverage;
+  researchProgress?: Record<string, ResearchProgress>;
+  researchSections?: Record<string, { title: string; status: string }>;
+  replanning?: AgentReplanning;
+  skillSuggestions?: WritingSkillSummary[];
+  contextProgress?: string;
   createdId?: string;
   documentRejected?: boolean;
   answerFeedback?: 'helpful' | 'incorrect';
@@ -169,6 +192,13 @@ export default function DocumentAgentPanel({
   const [template, setTemplate] = useState<string>();
   const [templatePickerOpen, setTemplatePickerOpen] = useState(false);
   const [templates, setTemplates] = useState<NoteTemplate[]>([]);
+  const [skillSelection, setSkillSelection] = useState<SkillSelection>();
+  const [skillPickerOpen, setSkillPickerOpen] = useState(false);
+  const [skillLoading, setSkillLoading] = useState(false);
+  const [preferencesOpen, setPreferencesOpen] = useState(false);
+  const [preferencesRefresh, setPreferencesRefresh] = useState(0);
+  const [preferencesUpdated, setPreferencesUpdated] = useState(false);
+  const skillLoadGeneration = useRef(0);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [docs, setDocs] = useState<DocumentRecord[]>([]);
   const [docSearch, setDocSearch] = useState('');
@@ -197,6 +227,42 @@ export default function DocumentAgentPanel({
     setTurns((items) =>
       items.map((t) => (t.id === id ? { ...t, ...patch } : t)),
     );
+  const changeSkill = (selection?: SkillSelection) => {
+    if (!selection) {
+      skillLoadGeneration.current++;
+      setSkillLoading(false);
+    }
+    setSkillSelection(selection);
+  };
+  const chooseSkill = async (summary: WritingSkillSummary) => {
+    if (busy || capabilities?.skills_enabled !== true || !isLoggedIn) return;
+    const requestToken = ++skillLoadGeneration.current;
+    const taskToken = generation.current;
+    setSkillLoading(true);
+    try {
+      const skill = await getWritingSkill(summary.skill_id);
+      if (
+        !mounted.current ||
+        requestToken !== skillLoadGeneration.current ||
+        taskToken !== generation.current
+      )
+        return;
+      if (!skill.enabled) throw new Error('此写作流程已停用，请选择其他流程');
+      setSkillSelection({ skill, inputs: {} });
+      setSkillPickerOpen(true);
+      if (skill.revision !== summary.revision)
+        message.info('已读取最新版本，请查看流程与参数');
+    } catch (error: any) {
+      if (
+        mounted.current &&
+        requestToken === skillLoadGeneration.current &&
+        taskToken === generation.current
+      )
+        message.warning(error.response?.data?.message ?? error.message);
+    } finally {
+      if (requestToken === skillLoadGeneration.current) setSkillLoading(false);
+    }
+  };
   const handleAgentEvent =
     (id: string, token: number, local: LocalSnapshot) =>
     (event: AgentEvent) => {
@@ -209,6 +275,10 @@ export default function DocumentAgentPanel({
       )
         return;
       const d = event.data;
+      if (event.event === 'preferences_updated') {
+        setPreferencesRefresh((value) => value + 1);
+        setPreferencesUpdated(true);
+      }
       if (event.event === 'run_started') {
         if (d.graph && pendingGraphStop.current) {
           pendingGraphStop.current = false;
@@ -244,6 +314,7 @@ export default function DocumentAgentPanel({
             patch = {
               ...patch,
               graph: state,
+              researchEnabled: Boolean(state.payload.research_workflow),
               status: state.status,
               connection: undefined,
               error: state.payload.error,
@@ -325,6 +396,58 @@ export default function DocumentAgentPanel({
                 } as any
               )[d.status],
             };
+          if (event.event === 'verification')
+            patch = {
+              ...patch,
+              verification: d as unknown as AgentVerification,
+            };
+          if (event.event === 'research_brief')
+            patch = { ...patch, researchEnabled: true, researchBrief: d.brief };
+          if (event.event === 'research_coverage')
+            patch = {
+              ...patch,
+              researchEnabled: true,
+              researchCoverage: d as unknown as ResearchCoverage,
+            };
+          if (event.event === 'research_progress')
+            patch = {
+              ...patch,
+              researchEnabled: true,
+              researchProgress: {
+                ...turn.researchProgress,
+                [d.task_id ?? 'research']: d as unknown as ResearchProgress,
+              },
+            };
+          if (event.event === 'research_section')
+            patch = {
+              ...patch,
+              researchEnabled: true,
+              researchSections: {
+                ...turn.researchSections,
+                [d.section_id]: { title: d.title, status: d.status },
+              },
+            };
+          if (event.event === 'skill_suggestions')
+            patch = { ...patch, skillSuggestions: d.skills ?? [] };
+          if (event.event === 'context_compacted')
+            patch = { ...patch, contextProgress: '已压缩资料，原文可按需取回' };
+          if (event.event === 'context_retrieved')
+            patch = { ...patch, contextProgress: '已取回原证据片段' };
+          if (event.event === 'replanning') {
+            const replanning = d as unknown as AgentReplanning;
+            const steps = { ...turn.steps };
+            for (const stepId of replanning.invalidated_steps)
+              steps[stepId] = {
+                description: steps[stepId]?.description ?? stepId,
+                status: 'invalidated',
+              };
+            for (const stepId of replanning.reused_steps)
+              steps[stepId] = {
+                description: steps[stepId]?.description ?? stepId,
+                status: 'done',
+              };
+            patch = { ...patch, replanning, steps };
+          }
           if (event.event === 'result')
             patch = {
               ...patch,
@@ -440,6 +563,11 @@ export default function DocumentAgentPanel({
     setBusy(false);
     setTurns([]);
     setAttachments([]);
+    skillLoadGeneration.current++;
+    setSkillSelection(undefined);
+    setSkillPickerOpen(false);
+    setSkillLoading(false);
+    setPreferencesOpen(false);
     conversation.current = uid();
     snapshot.current = null;
     restoredRun.current = null;
@@ -453,6 +581,13 @@ export default function DocumentAgentPanel({
       setBusy(false);
       activeTurn.current = null;
       setTurns([]);
+      skillLoadGeneration.current++;
+      setSkillSelection(undefined);
+      setSkillPickerOpen(false);
+      setSkillLoading(false);
+      setPreferencesOpen(false);
+      setPreferencesUpdated(false);
+      setPreferencesRefresh(0);
       if (editor && !editor.isDestroyed) setTracked(editor, []);
       restoredRun.current = null;
       return;
@@ -558,6 +693,9 @@ export default function DocumentAgentPanel({
       live = false;
     };
   }, [open, isLoggedIn, key, editor, busy]);
+  useEffect(() => {
+    if (!open) setPreferencesOpen(false);
+  }, [open]);
   useEffect(() => {
     if (!open || !editor || !isLoggedIn) return;
     let live = true;
@@ -798,6 +936,23 @@ export default function DocumentAgentPanel({
     confirmedPlan?: ExecutionPlan,
   ) => {
     if (!editor || busy || !text.trim()) return;
+    if (skillLoading) {
+      message.warning('请等待写作流程读取完成');
+      return;
+    }
+    if (capabilities?.skills_enabled === true && skillSelection) {
+      const missing = skillSelection.skill.parameters.filter(
+        (parameter) =>
+          parameter.required && !skillSelection.inputs[parameter.name]?.trim(),
+      );
+      if (missing.length) {
+        message.warning(
+          `请填写流程参数${missing.map((parameter) => parameter.label).join('、')}`,
+        );
+        setSkillPickerOpen(true);
+        return;
+      }
+    }
     if (!sessionStorage.getItem('token')) {
       onRequireLogin(() => void start(text, nextMode, confirmedPlan));
       return;
@@ -843,6 +998,8 @@ export default function DocumentAgentPanel({
     const id = uid();
     activeTurn.current = id;
     const frozenTarget = target;
+    const frozenSkill =
+      capabilities?.skills_enabled === true ? skillSelection : undefined;
     setTurns((items) => [
       ...items,
       {
@@ -889,6 +1046,13 @@ export default function DocumentAgentPanel({
           references: attachments.map((a) => a.reference),
           knowledge_scope: knowledgeScope,
           template_id: template,
+          ...(frozenSkill
+            ? {
+                skill_id: frozenSkill.skill.skill_id,
+                skill_revision: frozenSkill.skill.revision,
+                skill_inputs: { ...frozenSkill.inputs },
+              }
+            : {}),
           confirmed_plan: confirmedPlan,
         },
         handleAgentEvent(id, token, local),
@@ -1023,9 +1187,7 @@ export default function DocumentAgentPanel({
           title: result.title,
           content: markdown,
           editor_content: editor?.schema
-            .nodeFromJSON(
-              editor.markdown.parse(markdown),
-            )
+            .nodeFromJSON(editor.markdown.parse(markdown))
             .toJSON(),
           visibility: 'private',
           source_type: 'draft',
@@ -1436,7 +1598,40 @@ export default function DocumentAgentPanel({
                 </Tag>
                 <span>{turn.route}</span>
                 {turn.reflection && <span>{turn.reflection}</span>}
+                {turn.contextProgress && <span>{turn.contextProgress}</span>}
               </div>
+              <AgentVerificationProgress
+                verification={turn.verification}
+                replanning={turn.replanning}
+                steps={turn.steps}
+                waiting={turn.graph?.waiting}
+              />
+              {turn.researchEnabled && turn.runId && (
+                <AgentResearchProgress
+                  runId={turn.runId}
+                  brief={turn.researchBrief}
+                  coverage={turn.researchCoverage}
+                  progress={turn.researchProgress}
+                  result={turn.result}
+                  sections={turn.researchSections}
+                  citations={[...turn.readCitations, ...turn.citations]}
+                  taskLabels={Object.fromEntries(
+                    Object.entries(turn.steps).map(([id, step]) => [
+                      id,
+                      step.description,
+                    ]),
+                  )}
+                />
+              )}
+              {capabilities?.skills_enabled === true &&
+                isLoggedIn &&
+                turn.skillSuggestions && (
+                  <AgentSkillSuggestions
+                    skills={turn.skillSuggestions}
+                    disabled={busy || skillLoading}
+                    onChoose={(skill) => void chooseSkill(skill)}
+                  />
+                )}
               {turn.graph && (
                 <Space wrap style={{ marginBottom: 8 }}>
                   {turn.status === 'running' && (
@@ -1507,9 +1702,12 @@ export default function DocumentAgentPanel({
                           ? '✓'
                           : step.status === 'failed'
                             ? '×'
-                            : '◌'}
+                            : step.status === 'invalidated'
+                              ? '↻'
+                              : '◌'}
                       </span>
                       {step.description}
+                      {step.status === 'invalidated' && '（待重新执行）'}
                     </div>
                   ))}
                 </details>
@@ -1915,6 +2113,29 @@ export default function DocumentAgentPanel({
                 </button>
               </div>
             )}
+            {capabilities?.skills_enabled === true &&
+              isLoggedIn &&
+              skillSelection && (
+                <div className="agent-selected-template">
+                  <ListChecks size={12} />
+                  {skillSelection.skill.name} · 版本{' '}
+                  {skillSelection.skill.revision}
+                  <button
+                    aria-label="查看流程参数"
+                    disabled={busy}
+                    onClick={() => setSkillPickerOpen(true)}
+                  >
+                    参数与步骤
+                  </button>
+                  <button
+                    aria-label="清除写作流程"
+                    disabled={busy}
+                    onClick={() => changeSkill(undefined)}
+                  >
+                    <X size={12} />
+                  </button>
+                </div>
+              )}
             <div className="agent-toolbar">
               <div className="agent-mode-controls">
                 <Select
@@ -1944,6 +2165,17 @@ export default function DocumentAgentPanel({
                 )}
               </div>
               <div className="agent-tool-actions">
+                {capabilities?.skills_enabled === true && isLoggedIn && (
+                  <AgentSkillPicker
+                    open={skillPickerOpen}
+                    onOpenChange={setSkillPickerOpen}
+                    selection={skillSelection}
+                    onChange={changeSkill}
+                    onChoose={(skill) => void chooseSkill(skill)}
+                    disabled={busy}
+                    loading={skillLoading}
+                  />
+                )}
                 <Popover
                   trigger="click"
                   placement="topRight"
@@ -2118,6 +2350,18 @@ export default function DocumentAgentPanel({
                           onChange={setWeb}
                         />
                       </div>
+                      {capabilities?.preferences_enabled === true &&
+                        isLoggedIn && (
+                          <Button
+                            size="small"
+                            onClick={() => {
+                              setPreferencesUpdated(false);
+                              setPreferencesOpen(true);
+                            }}
+                          >
+                            写作偏好{preferencesUpdated ? ' · 有更新' : ''}
+                          </Button>
+                        )}
                     </div>
                   }
                 >
@@ -2160,6 +2404,7 @@ export default function DocumentAgentPanel({
                     icon={<Send size={15} />}
                     disabled={
                       !query.trim() ||
+                      skillLoading ||
                       attachments.some((a) => a.status !== 'ready') ||
                       capabilities?.enabled === false
                     }
@@ -2171,6 +2416,13 @@ export default function DocumentAgentPanel({
           </div>
         </footer>
       </section>
+      {capabilities?.preferences_enabled === true && isLoggedIn && (
+        <AgentPreferencesDrawer
+          open={open && preferencesOpen}
+          onClose={() => setPreferencesOpen(false)}
+          refreshKey={preferencesRefresh}
+        />
+      )}
     </Drawer>
   );
 }
@@ -2181,6 +2433,7 @@ function toolLabel(name: string) {
         read_current_document: '读取当前正文',
         read_reference: '读取参考资料',
         read_knowledge_document: '追读知识文档',
+        read_task_evidence: '取回原证据片段',
         search_knowledge_base: '检索知识库',
         list_templates: '查找模板',
         read_template: '读取模板',

@@ -24,10 +24,16 @@ export interface AgentRequest {
   references: ReferenceInput[];
   knowledge_scope?: KnowledgeScope;
   template_id?: string;
+  skill_id?: string;
+  skill_revision?: number;
+  skill_inputs?: Record<string, string>;
   confirmed_plan?: ExecutionPlan;
 }
 export interface AgentCapabilities {
+  research_writing_available?: boolean;
   graph_enabled?: boolean;
+  skills_enabled?: boolean;
+  preferences_enabled?: boolean;
   preview?: boolean;
   enabled: boolean;
   workspace_enabled: boolean;
@@ -81,8 +87,15 @@ export interface StoredAgentRun {
     };
   };
 }
-export async function restoreAgentRun(runId: string, editorJson: Record<string, unknown>): Promise<StoredAgentRun> {
-  return (await ragClient.post(`/ai/agent/${runId}/restore`, { editor_json: editorJson })).data;
+export async function restoreAgentRun(
+  runId: string,
+  editorJson: Record<string, unknown>,
+): Promise<StoredAgentRun> {
+  return (
+    await ragClient.post(`/ai/agent/${runId}/restore`, {
+      editor_json: editorJson,
+    })
+  ).data;
 }
 export async function streamDocumentAgent(
   input: AgentRequest,

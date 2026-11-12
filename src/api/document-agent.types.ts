@@ -20,7 +20,13 @@ export interface EditorSnapshot {
   revision: number;
   hash: string;
   regions: SnapshotRegion[];
-  selection: { text: string; inline: boolean; region_ids: string[];cursor_before?:string;cursor_after?:string };
+  selection: {
+    text: string;
+    inline: boolean;
+    region_ids: string[];
+    cursor_before?: string;
+    cursor_after?: string;
+  };
 }
 export interface ReferenceInput {
   id: string;
@@ -34,12 +40,12 @@ export interface ExecutionPlan {
   goal: string;
   outline: string[];
   constraints: string[];
-  steps: Array<{
+  steps: {
     id: string;
     description: string;
     depends_on: string[];
     capability: 'read' | 'search' | 'compose';
-  }>;
+  }[];
 }
 export interface DocumentEdit {
   id: string;
@@ -87,14 +93,25 @@ export interface AgentEvent {
   event: string;
   data: { run_id: string; seq: number; [key: string]: any };
 }
+export interface AgentVerification {
+  status: 'checking' | 'repairing' | 'rechecking' | 'passed' | 'incomplete';
+  candidate_version: number;
+  issues?: { type: string; description: string }[];
+  message?: string;
+}
+export interface AgentReplanning {
+  invalidated_steps: string[];
+  reused_steps: string[];
+  plan_version: number;
+}
 export interface AgentMessage {
   role: 'system' | 'user' | 'assistant' | 'tool';
   content: string | null;
-  tool_calls?: Array<{
+  tool_calls?: {
     id: string;
     type: 'function';
     function: { name: string; arguments: string };
-  }>;
+  }[];
   tool_call_id?: string;
 }
 export interface FunctionTool {

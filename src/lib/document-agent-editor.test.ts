@@ -1,5 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { basename, delimiter, dirname } from 'node:path';
 import { Editor } from '@tiptap/core';
 import StarterKit from '@tiptap/starter-kit';
 import { Markdown } from '@tiptap/markdown';
@@ -49,14 +51,42 @@ function edit(id: string, region: string, text: string): DocumentEdit {
 }
 afterEach(() => editors.splice(0).forEach((e) => e.destroy()));
 describe('document agent transactions', () => {
+  it('preserves code and tables when adopting a paragraph edit and restores everything on undo', () => {
+    const editor = setup(
+      '原始说明。\n\n```ts\nconst value = 1;\n```\n\n| 字段 | 值 |\n| --- | --- |\n| A | 1 |',
+    );
+    editor.commands.setTextSelection(1);
+    const original = editor.getJSON();
+    const snapshot = captureSnapshot(editor, identity, '', 0);
+    trackEdits(editor, snapshot, [edit('paragraph', 'b0', '改写后的说明。')]);
+    expect(editor.getJSON()).toEqual(original);
+    applySuggestions(editor, ['paragraph'], identity, snapshot);
+    expect(editor.getText()).toContain('改写后的说明。');
+    for (const type of ['codeBlock', 'table']) {
+      expect(
+        editor.getJSON().content?.find((node) => node.type === type),
+      ).toEqual(original.content?.find((node) => node.type === type));
+    }
+    expect(editor.commands.undo()).toBe(true);
+    expect(editor.getJSON()).toEqual(original);
+  });
   it('restores selection edits to the original range after the current cursor has moved', () => {
     const editor = setup('first paragraph');
     editor.commands.setTextSelection({ from: 1, to: 6 });
     const original = captureSnapshot(editor, identity, '', 0);
-    const suggestion: DocumentEdit = { ...edit('selection', 'b0', 'updated'), target: { kind: 'selection' } };
+    const suggestion: DocumentEdit = {
+      ...edit('selection', 'b0', 'updated'),
+      target: { kind: 'selection' },
+    };
     editor.commands.setTextSelection(10);
     const restored = captureSnapshot(editor, identity, '', 0);
-    restoreAgentSelection(editor, restored, original.wire.selection, original.selection, [suggestion]);
+    restoreAgentSelection(
+      editor,
+      restored,
+      original.wire.selection,
+      original.selection,
+      [suggestion],
+    );
     trackEdits(editor, restored, [suggestion]);
     applySuggestions(editor, ['selection'], identity, restored);
     expect(editor.getText()).toBe('updated paragraph');
@@ -64,28 +94,61 @@ describe('document agent transactions', () => {
   it('rejects a restored selection whose original text no longer matches', () => {
     const editor = setup('first paragraph');
     const local = captureSnapshot(editor, identity, '', 0);
-    const suggestion: DocumentEdit = { ...edit('selection', 'b0', 'updated'), target: { kind: 'selection' } };
-    expect(() => restoreAgentSelection(editor, local, { ...local.wire.selection, text: 'old text' },
-      { from: 1, to: 6 }, [suggestion])).toThrow('原选区无法恢复');
+    const suggestion: DocumentEdit = {
+      ...edit('selection', 'b0', 'updated'),
+      target: { kind: 'selection' },
+    };
+    expect(() =>
+      restoreAgentSelection(
+        editor,
+        local,
+        { ...local.wire.selection, text: 'old text' },
+        { from: 1, to: 6 },
+        [suggestion],
+      ),
+    ).toThrow('原选区无法恢复');
   });
   it('recovers an inline suggestion after accepting an earlier block edit shifted its position', () => {
     const editor = setup('first\n\nhello world');
     editor.commands.setTextSelection({ from: 8, to: 13 });
     const original = captureSnapshot(editor, identity, '', 0);
-    editor.on('transaction', ({ transaction }) => mapSnapshot(original, transaction));
-    const inline: DocumentEdit = { ...edit('inline', 'b1', 'Hi'), target: { kind: 'selection' } };
-    trackEdits(editor, original, [edit('first', 'b0', 'changed\n\nadded'), inline]);
+    editor.on('transaction', ({ transaction }) =>
+      mapSnapshot(original, transaction),
+    );
+    const inline: DocumentEdit = {
+      ...edit('inline', 'b1', 'Hi'),
+      target: { kind: 'selection' },
+    };
+    trackEdits(editor, original, [
+      edit('first', 'b0', 'changed\n\nadded'),
+      inline,
+    ]);
     applySuggestions(editor, ['first'], identity, original);
     const restored = captureSnapshot(editor, identity, '', 1);
-    restoreAgentSelection(editor, restored, { ...original.wire.selection, region_ids: ['b2'] }, original.selection, [inline]);
+    restoreAgentSelection(
+      editor,
+      restored,
+      { ...original.wire.selection, region_ids: ['b2'] },
+      original.selection,
+      [inline],
+    );
     trackEdits(editor, restored, [inline]);
     applySuggestions(editor, ['inline'], identity, restored);
     expect(editor.getText()).toContain('Hi world');
     expect(editor.getText()).toContain('added');
     const wrong = captureSnapshot(editor, identity, '', 2);
-    expect(() => restoreAgentSelection(editor, wrong, { ...wrong.wire.selection, text: '', region_ids: ['b0'] },
-      { from: editor.state.doc.content.size - 1, to: editor.state.doc.content.size - 1 },
-      [{ ...inline, target: { kind: 'cursor' } }])).toThrow('原选区无法恢复');
+    expect(() =>
+      restoreAgentSelection(
+        editor,
+        wrong,
+        { ...wrong.wire.selection, text: '', region_ids: ['b0'] },
+        {
+          from: editor.state.doc.content.size - 1,
+          to: editor.state.doc.content.size - 1,
+        },
+        [{ ...inline, target: { kind: 'cursor' } }],
+      ),
+    ).toThrow('原选区无法恢复');
   });
   it('preserves generated tables and highlights through adoption, save and markdown reload', () => {
     const editor = setup('old');
@@ -247,3 +310,50 @@ describe('document agent transactions', () => {
     expect(editor.getText()).toBe('');
   });
 });
+
+// Replay accepted real-model candidates through the normal editor transaction entry points.
+for (const reportPath of (process.env.AGENT_ACCEPTANCE_REPORTS ?? '')
+  .split(delimiter)
+  .filter(Boolean)) {
+  const report = JSON.parse(readFileSync(reportPath, 'utf8'));
+  for (const row of report.rows) {
+    const attempt = row.attempts?.at(-1);
+    const result = attempt?.delivery?.result;
+    if (result?.kind !== 'edits' || !attempt.input) continue;
+    it(`adopts and undoes the candidate ${row.case_id} from ${basename(dirname(reportPath))}`, () => {
+      const input = attempt.input;
+      const editor = new Editor({
+        element: document.createElement('div'),
+        extensions: [StarterKit, Markdown, TableKit, Image, Highlight],
+        content: input.editor_snapshot.json,
+      });
+      editors.push(editor);
+      registerAgentSuggestions(editor, () => {});
+      editor.commands.setTextSelection({
+        from: 1,
+        to: 1 + input.editor_snapshot.selection.text.length,
+      });
+      const original = editor.getJSON();
+      const snapshot = captureSnapshot(
+        editor,
+        input.editor_snapshot.identity,
+        input.editor_snapshot.title,
+        0,
+      );
+      trackEdits(editor, snapshot, result.edits);
+      expect(editor.getJSON()).toEqual(original);
+      applySuggestions(
+        editor,
+        result.edits.map((edit: DocumentEdit) => edit.id),
+        input.editor_snapshot.identity,
+        snapshot,
+      );
+      expect(editor.getJSON().content?.slice(1)).toEqual(
+        original.content?.slice(1),
+      );
+      expect(editor.getJSON()).not.toEqual(original);
+      expect(editor.commands.undo()).toBe(true);
+      expect(editor.getJSON()).toEqual(original);
+    });
+  }
+}

@@ -132,6 +132,39 @@
   padding: 18px;
   scroll-behavior: smooth;
 }
+.agent-verification {
+  margin: 8px 0 12px;
+  padding: 10px 12px;
+  border: 1px solid #dce7f5;
+  border-radius: 8px;
+  background: #f5f9ff;
+  color: #345579;
+  font-size: 12px;
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+  .agent-verification-status {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: baseline;
+  }
+  small {
+    color: #7c8a9d;
+  }
+  p,
+  ul {
+    margin: 5px 0;
+  }
+  ul {
+    padding-left: 18px;
+  }
+  details {
+    margin-top: 6px;
+  }
+  summary {
+    cursor: pointer;
+  }
+}
 .agent-empty {
   padding: 34px 10px 20px;
   color: #28558e;
@@ -554,6 +587,138 @@
   background: rgba(96, 165, 250, 0.18);
   border-bottom: 2px solid #579af6;
 }
+.agent-skill-picker {
+  width: min(360px, calc(100vw - 48px));
+  max-height: 65vh;
+  overflow-y: auto;
+  > p {
+    color: #6d7e93;
+    font-size: 12px;
+  }
+  .agent-template-list {
+    margin: 10px 0;
+  }
+  button:disabled {
+    cursor: default;
+    opacity: 0.55;
+  }
+}
+.agent-skill-details {
+  padding: 10px;
+  border: 1px solid #dce7f5;
+  border-radius: 8px;
+  background: #f5f9ff;
+  font-size: 12px;
+  label {
+    display: block;
+    margin: 8px 0;
+  }
+  summary {
+    cursor: pointer;
+    margin-top: 8px;
+  }
+  ol,
+  ul {
+    padding-left: 20px;
+  }
+}
+.agent-skill-suggestions {
+  padding: 10px 12px;
+  margin: 10px 0;
+  border: 1px solid #e4eaf2;
+  border-radius: 8px;
+  font-size: 12px;
+  > div {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-top: 8px;
+  }
+  small {
+    display: block;
+    color: #7c8a9d;
+    margin-top: 3px;
+  }
+}
+.agent-skill-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  textarea {
+    font-family: Consolas, monospace;
+  }
+}
+.agent-preferences {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  > p,
+  section > p {
+    color: #697b91;
+    line-height: 1.7;
+  }
+  h3 {
+    margin: 0 0 12px;
+    font-size: 14px;
+  }
+  label[for='agent-preference-draft'] {
+    display: block;
+    margin-bottom: 8px;
+  }
+  textarea {
+    margin-bottom: 10px;
+  }
+  article {
+    padding: 12px 0;
+    border-bottom: 1px solid #e5ebf3;
+    > p {
+      margin: 0 0 8px;
+      line-height: 1.7;
+      overflow-wrap: anywhere;
+    }
+  }
+}
+.agent-preference-source {
+  margin-bottom: 10px;
+  color: #6f8096;
+  font-size: 12px;
+  summary {
+    cursor: pointer;
+  }
+  blockquote {
+    margin: 8px 0;
+    padding: 8px 12px;
+    border-left: 3px solid #abcdf2;
+    background: #f5f9ff;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+}
+.agent-preference-conflicts {
+  margin: 10px 0;
+  padding: 8px 10px;
+  border: 1px solid #e2eaf5;
+  border-radius: 6px;
+  legend {
+    font-size: 12px;
+    color: #697b91;
+  }
+  .ant-checkbox-wrapper {
+    display: flex;
+    margin: 6px 0;
+  }
+}
+.agent-skill-manager article {
+  padding: 12px 0;
+  border-bottom: 1px solid #e4eaf2;
+  p {
+    color: #7c8a9d;
+  }
+  .ant-tag {
+    margin-left: 8px;
+  }
+}
 .agent-change-mark.conflict {
   background: rgba(233, 188, 134, 0.25);
   border-color: #bc8a4e;
@@ -616,5 +781,70 @@
   }
   .agent-empty button {
     transition: none;
+  }
+}
+// Research artifacts share the document assistant's typography and spacing.
+.agent-research {
+  margin: 12px 0;
+  padding: 12px;
+  border: 1px solid var(--agent-line, #e4eaf2);
+  border-radius: 8px;
+  summary {
+    cursor: pointer;
+    font-weight: 600;
+  }
+  font-size: 13px;
+  background: #fff;
+  p,
+  li {
+    line-height: 1.65;
+    overflow-wrap: anywhere;
+  }
+  h4 {
+    margin: 14px 0 6px;
+  }
+  li[data-status] {
+    margin: 10px 0;
+    padding-left: 10px;
+    border-left: 2px solid #b7cff2;
+  }
+  li[data-status='missing'],
+  li[data-status='conflicted'] {
+    border-left-color: #d6a752;
+  }
+  small {
+    display: block;
+    overflow-wrap: anywhere;
+    opacity: 0.7;
+  }
+  button {
+    margin: 4px 8px 4px 0;
+    padding: 4px 9px;
+    cursor: pointer;
+    color: var(--agent-accent, #1677ff);
+    border: 1px solid var(--agent-line, #e4eaf2);
+    border-radius: 4px;
+    background: #fff;
+    font: inherit;
+    &:hover {
+      background: #f5f9ff;
+    }
+    &:focus-visible {
+      outline: 2px solid var(--agent-accent, #1677ff);
+      outline-offset: 2px;
+    }
+    &:disabled {
+      opacity: 0.55;
+      cursor: wait;
+    }
+  }
+  .agent-research-location {
+    margin: 10px 0;
+    padding: 10px;
+    border-left: 2px solid #b7cff2;
+    background: #f5f9ff;
+    white-space: pre-wrap;
+    max-height: 240px;
+    overflow: auto;
   }
 }
