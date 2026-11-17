@@ -1,4 +1,7 @@
 /**
+ * @file 分页文档转换。在完整 TipTap 文档与分页数据结构之间转换。
+ */
+/**
  * DocumentConverter - 文档转换工具
  *
  * 将现有的完整文档转换为分页格式：
@@ -21,6 +24,11 @@ const DEFAULT_PAGE_SIZE = 5000;
 export class DocumentConverter {
   /**
    * 将完整文档转换为分页格式
+   *
+   * @param editor 当前 TipTap 编辑器实例。
+   * @param docId 知识文档标识。
+   * @param title 文档或界面标题。
+   * @param pageSize 每页返回的条目数。
    */
   static async convertToPagedDocument(
     editor: Editor,
@@ -93,6 +101,10 @@ export class DocumentConverter {
 
   /**
    * 按字数拆分文档成多个页面
+   *
+   * @param doc 当前文档或编辑器文档节点。
+   * @param pageSize 每页返回的条目数。
+   * @returns 整理后的结果列表。
    */
   private static splitIntoPages(
     doc: any,
@@ -109,6 +121,11 @@ export class DocumentConverter {
     let posInPage = 0;
 
     // 递归遍历节点
+    /**
+     * 递归遍历节点
+     *
+     * @param node 当前语法树或编辑器节点。
+     */
     const processNode = (node: any) => {
       const nodeText = this.getNodeText(node);
       const nodeWordCount = nodeText.length;
@@ -167,6 +184,9 @@ export class DocumentConverter {
 
   /**
    * 提取所有页面的标题，构建完整目录
+   *
+   * @param pages 本次涉及的分页数据。
+   * @returns 整理后的结果列表。
    */
   private static extractAllHeadings(
     pages: { content: any; headings: HeadingInfo[]; wordCount: number }[],
@@ -203,6 +223,9 @@ export class DocumentConverter {
 
   /**
    * 获取节点的文本内容
+   *
+   * @param node 当前语法树或编辑器节点。
+   * @returns 整理后的文本或标识。
    */
   private static getNodeText(node: any): string {
     if (node.type === 'text') {
@@ -218,6 +241,9 @@ export class DocumentConverter {
 
   /**
    * 从分页文档恢复为完整文档
+   *
+   * @param docId 知识文档标识。
+   * @returns any 类型的处理结果。
    */
   static async convertToFullDocument(docId: string): Promise<any> {
     console.log('[DocumentConverter] 恢复完整文档:', docId);
@@ -259,6 +285,8 @@ export class DocumentConverter {
 
   /**
    * 清除文档数据
+   *
+   * @param docId 知识文档标识。
    */
   static async deleteDocument(docId: string): Promise<void> {
     console.log('[DocumentConverter] 删除文档:', docId);
@@ -268,6 +296,9 @@ export class DocumentConverter {
 
   /**
    * 获取文档统计信息
+   *
+   * @param docId 知识文档标识。
+   * @returns 整理后的状态与操作结果对象。
    */
   static async getDocumentStats(docId: string): Promise<{
     totalPages: number;

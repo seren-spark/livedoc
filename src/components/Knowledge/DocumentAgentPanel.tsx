@@ -1,3 +1,6 @@
+/**
+ * @file 文档 Agent 交互面板。连接编辑器快照、任务事件、计划确认、暂停恢复与候选采纳。
+ */
 import { useEffect, useRef, useState } from 'react';
 import {
   Alert,
@@ -152,6 +155,11 @@ interface Turn {
   documentRejected?: boolean;
   answerFeedback?: 'helpful' | 'incorrect';
 }
+/**
+ * 生成本地任务与界面状态使用的唯一标识。
+ *
+ * @returns `${string}-${string}-${string}-${string}-${string}` 类型的处理结果。
+ */
 const uid = () => crypto.randomUUID();
 const labels: Record<string, string> = {
   queued: '等待执行',
@@ -169,6 +177,12 @@ const labels: Record<string, string> = {
   failed: '失败',
   interrupted: '已中断',
 };
+/**
+ * 呈现文档 Agent 交互面板，并连接对应状态与用户操作。
+ *
+ * @param props 组件接收的属性。
+ * @returns 供页面渲染的组件内容。
+ */
 export default function DocumentAgentPanel({
   editor,
   title,
@@ -223,10 +237,21 @@ export default function DocumentAgentPanel({
   const selectionNeedsRestore = useRef(false);
   const pendingGraphStop = useRef(false);
   const key = documentKey(identity);
+  /**
+   * 只更新指定任务轮次，保留其他轮次的界面状态。
+   *
+   * @param id 目标记录的唯一标识。
+   * @param patch 仅包含待修改字段的补丁对象。
+   */
   const update = (id: string, patch: Partial<Turn>) =>
     setTurns((items) =>
       items.map((t) => (t.id === id ? { ...t, ...patch } : t)),
     );
+  /**
+   * 更换当前任务选中的写作技能并更新关联输入。
+   *
+   * @param selection 当前选区的范围与文本信息（可选）。
+   */
   const changeSkill = (selection?: SkillSelection) => {
     if (!selection) {
       skillLoadGeneration.current++;
@@ -234,6 +259,11 @@ export default function DocumentAgentPanel({
     }
     setSkillSelection(selection);
   };
+  /**
+   * 加载指定技能详情，准备本次任务的技能参数。
+   *
+   * @param summary 已经生成的内容摘要。
+   */
   const chooseSkill = async (summary: WritingSkillSummary) => {
     if (busy || capabilities?.skills_enabled !== true || !isLoggedIn) return;
     const requestToken = ++skillLoadGeneration.current;
@@ -263,6 +293,14 @@ export default function DocumentAgentPanel({
       if (requestToken === skillLoadGeneration.current) setSkillLoading(false);
     }
   };
+  /**
+   * 将服务端任务事件映射到进度、计划、引用与候选界面状态。
+   *
+   * @param id 目标记录的唯一标识。
+   * @param token 登录令牌或当前匹配的词项。
+   * @param local 本地保存的编辑快照或状态。
+   * @returns 供后续操作使用的回调或清理函数。
+   */
   const handleAgentEvent =
     (id: string, token: number, local: LocalSnapshot) =>
     (event: AgentEvent) => {
@@ -529,6 +567,11 @@ export default function DocumentAgentPanel({
   useEffect(() => {
     if (!editor) return;
     const unregister = registerAgentSuggestions(editor, setTrackedState);
+    /**
+     * 响应编辑器事务，映射任务快照并同步候选与当前内容的冲突状态。
+     *
+     * @param options 控制本次行为的可选配置。
+     */
     const transaction = ({ transaction: tr }: any) => {
       if (tr.docChanged) {
         revision.current++;
@@ -832,6 +875,9 @@ export default function DocumentAgentPanel({
     const ids = parsingIds.split(',');
     let live = true;
     let timer: ReturnType<typeof setTimeout>;
+    /**
+     * 轮询后台任务状态，并在达到终态或组件退出时停止。
+     */
     const poll = async () => {
       const results = await Promise.allSettled(
         ids.map((id) => getDocumentImport(id)),
@@ -886,6 +932,14 @@ export default function DocumentAgentPanel({
         !t.documentRejected &&
         t.status === 'awaiting_review',
     );
+  /**
+   * 上报本轮候选的采纳或拒绝结果，并同步服务端状态。
+   *
+   * @param turn 执行模型调用的回调或当前问答轮次。
+   * @param action 本次请求执行的操作类型。
+   * @param editId edit 对应的唯一标识（可选）。
+   * @param docId 知识文档标识（可选）。
+   */
   const feedback = (
     turn: Turn,
     action: string,
@@ -917,6 +971,9 @@ export default function DocumentAgentPanel({
         feedback(turn, 'conflict', item.edit.id);
       }
   }, [tracked, turns]);
+  /**
+   * 清除当前候选及其编辑器跟踪状态。
+   */
   const discard = () => {
     const last = turns.find((t) => t.id === activeTurn.current);
     if (last) {
@@ -930,6 +987,13 @@ export default function DocumentAgentPanel({
     }
     if (editor) setTracked(editor, []);
   };
+  /**
+   * 校验输入和技能参数，必要时要求登录，然后开始本轮任务。
+   *
+   * @param text 待处理的文本。
+   * @param nextMode nextMode 参数。
+   * @param confirmedPlan 待校验或执行的任务计划（可选）。
+   */
   const start = async (
     text: string,
     nextMode = mode,
@@ -976,6 +1040,13 @@ export default function DocumentAgentPanel({
     }
     await execute(text, nextMode, confirmedPlan);
   };
+  /**
+   * 捕获编辑器快照，选择 SSE 或图任务路径，并订阅计划、进度和候选事件。
+   *
+   * @param text 待处理的文本。
+   * @param nextMode nextMode 参数（AgentMode）。
+   * @param confirmedPlan 待校验或执行的任务计划（可选）。
+   */
   const execute = async (
     text: string,
     nextMode: AgentMode,
@@ -1072,6 +1143,12 @@ export default function DocumentAgentPanel({
       }
     }
   };
+  /**
+   * 提交计划确认、澄清答案或重试输入，继续原图任务。
+   *
+   * @param turn 执行模型调用的回调或当前问答轮次。
+   * @param input 本次操作的输入数据。
+   */
   const resumeGraph = async (turn: Turn, input: GraphResume) => {
     if (!editor || !turn.runId || busy) return;
     const abort = new AbortController();
@@ -1109,6 +1186,11 @@ export default function DocumentAgentPanel({
       }
     }
   };
+  /**
+   * 请求暂停当前图任务，并同步最新任务状态。
+   *
+   * @param turn 执行模型调用的回调或当前问答轮次。
+   */
   const pauseGraph = async (turn: Turn) => {
     try {
       const run = await controlGraphRun(turn.runId!, 'pause');
@@ -1117,6 +1199,11 @@ export default function DocumentAgentPanel({
       message.warning(error.response?.data?.message ?? error.message);
     }
   };
+  /**
+   * 请求结束当前图任务并清理执行状态。
+   *
+   * @param turn 执行模型调用的回调或当前问答轮次。
+   */
   const stopGraph = async (turn: Turn) => {
     try {
       const run = await controlGraphRun(turn.runId!, 'stop');
@@ -1130,6 +1217,12 @@ export default function DocumentAgentPanel({
       message.warning(error.response?.data?.message ?? error.message);
     }
   };
+  /**
+   * 展示图任务继续执行所需的确认或补充信息界面。
+   *
+   * @param turn 执行模型调用的回调或当前问答轮次。
+   * @param action 本次请求执行的操作类型。
+   */
   const openGraphInput = (turn: Turn, action: 'revise_plan' | 'answer') => {
     let text = '';
     Modal.confirm({
@@ -1149,6 +1242,12 @@ export default function DocumentAgentPanel({
       },
     });
   };
+  /**
+   * 复核候选与当前原文的匹配关系，应用用户选中的修改并上报采纳。
+   *
+   * @param turn 执行模型调用的回调或当前问答轮次。
+   * @param ids 本次操作涉及的记录标识集合。
+   */
   const apply = (turn: Turn, ids: string[]) => {
     if (!editor || !snapshot.current) return;
     try {
@@ -1159,6 +1258,12 @@ export default function DocumentAgentPanel({
       message.error(error.message);
     }
   };
+  /**
+   * 拒绝当前候选并提交反馈，清除待采纳编辑。
+   *
+   * @param turn 执行模型调用的回调或当前问答轮次。
+   * @param ids 本次操作涉及的记录标识集合。
+   */
   const reject = (turn: Turn, ids: string[]) => {
     if (!editor) return;
     setTracked(
@@ -1169,6 +1274,11 @@ export default function DocumentAgentPanel({
     );
     ids.forEach((id) => feedback(turn, 'rejected', id));
   };
+  /**
+   * 将候选内容交给文档保存流程，处理保存结果。
+   *
+   * @param turn 执行模型调用的回调或当前问答轮次。
+   */
   const saveDocument = async (turn: Turn) => {
     if (turn.result?.kind !== 'document' || saving) return;
     setSaving(turn.id);
@@ -1223,6 +1333,12 @@ export default function DocumentAgentPanel({
       if (mounted.current) setSaving(undefined);
     }
   };
+  /**
+   * 读取文本附件或提交文档解析，为当前任务增加参考资料。
+   *
+   * @param file 待上传或解析的文件。
+   * @returns 条件是否满足的判断结果。
+   */
   const upload = async (file: File) => {
     if (!sessionStorage.getItem('token')) {
       onRequireLogin(() => void upload(file));
@@ -1294,6 +1410,9 @@ export default function DocumentAgentPanel({
     } else message.warning('支持 PDF、DOCX、TXT、Markdown');
     return false;
   };
+  /**
+   * 把剪贴板文本转换为本次任务可使用的参考资料。
+   */
   const paste = () => {
     let text = '';
     Modal.confirm({
@@ -1331,6 +1450,11 @@ export default function DocumentAgentPanel({
       },
     });
   };
+  /**
+   * 打开指定引用的原文或资料预览。
+   *
+   * @param citation 需要展示或校验的引用证据。
+   */
   const openSource = (citation: AgentCitation) => {
     if (citation.kind === 'current_document' && editor) {
       if (
@@ -1364,6 +1488,13 @@ export default function DocumentAgentPanel({
       onClose();
       return;
     }
+    /**
+     * 选择候选对应的展示内容，打开预览区域。
+     *
+     * @param text 待处理的文本。
+     * @param changed 当前内容或状态是否已发生变化。
+     * @returns 供后续操作使用的回调或清理函数。
+     */
     const preview = (text: string, changed = false) =>
       Modal.info({
         title: citation.title,
@@ -1430,6 +1561,11 @@ export default function DocumentAgentPanel({
       });
     }
   };
+  /**
+   * 展示引用详情，并按来源类型触发定位或预览。
+   *
+   * @param citation 需要展示或校验的引用证据。
+   */
   const showCitation = (citation: AgentCitation) => {
     const modal = Modal.info({
       title: citation.title,
@@ -1472,7 +1608,13 @@ export default function DocumentAgentPanel({
       ),
     });
   };
+  /**
+   * 结束当前会话的界面状态，创建新的任务会话。
+   */
   const newConversation = () => {
+    /**
+     * 清空当前输入、结果和关联临时状态。
+     */
     const reset = () => {
       generation.current++;
       controller.current?.abort();
@@ -2426,6 +2568,12 @@ export default function DocumentAgentPanel({
     </Drawer>
   );
 }
+/**
+ * 把工具名称转换为进度界面可读的说明。
+ *
+ * @param name 目标名称。
+ * @returns 本次操作整理后的结果。
+ */
 function toolLabel(name: string) {
   return (
     (
@@ -2447,6 +2595,12 @@ function toolLabel(name: string) {
     )[name] ?? (name?.startsWith('mcp__') ? '读取联网资料' : name)
   );
 }
+/**
+ * 将当前候选正文导出为 Markdown 文件。
+ *
+ * @param title 文档或界面标题。
+ * @param markdown 待解析或写入的 Markdown 原文。
+ */
 function downloadMarkdown(title: string, markdown: string) {
   const url = URL.createObjectURL(
     new Blob([markdown], { type: 'text/markdown;charset=utf-8' }),
@@ -2457,6 +2611,13 @@ function downloadMarkdown(title: string, markdown: string) {
   a.click();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
+/**
+ * 从候选结果中整理可保存或下载的文稿正文。
+ *
+ * @param result 当前待处理的 Agent 候选结果。
+ * @param citations 本次实际可用的引用证据集合。
+ * @returns 整理后的文本或标识。
+ */
 function documentMarkdown(
   result: Extract<AgentResult, { kind: 'document' }>,
   citations: AgentCitation[],

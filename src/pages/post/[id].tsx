@@ -1,3 +1,6 @@
+/**
+ * @file 文章详情页。加载公开文章及图片资源，组合正文、目录和互动区域。
+ */
 import { Typography, Card, Button, Tag, Space, Spin, Result, Avatar } from 'antd';
 import defaultAvatar from '@/assets/default-avatar.svg';
 import '@/pages/post/styles/index.scss';
@@ -20,6 +23,11 @@ import {
 } from '@/lib/knowledge-editor';
 
 const MemorizedToC = React.memo(Toc);
+/**
+ * 呈现文章详情页，并连接对应状态与用户操作。
+ *
+ * @returns 供页面渲染的组件内容。
+ */
 export default function PostDetail() {
   const { id } = useParams();
   const [editor, setEditor] = useState<Editor | null>(null);
@@ -42,6 +50,12 @@ export default function PostDetail() {
     void (async () => {
       try {
         const record = (await getPublicArticle(id)) as PublicArticle;
+        /**
+         * 加载文章图片，并为页面建立可展示的资源地址。
+         *
+         * @param assetId 图片资源标识。
+         * @returns 下载的文件内容。
+         */
         const fetchImage = (assetId: string) => fetchPublicImage(id, assetId);
         const json = record.editor_content
           ? await hydrateEditorContent(record.editor_content, fetchImage, blobs)

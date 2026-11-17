@@ -1,3 +1,6 @@
+/**
+ * @file 前台中间内容区。组织前台中间内容区的界面与交互。
+ */
 import './index.scss';
 import { Card, Col, Menu, type MenuProps } from 'antd';
 // 文章组件
@@ -24,6 +27,12 @@ interface MiddleContentProps {
 // 模拟文章数据
 
 // 中间内容
+/**
+ * 呈现前台中间内容区，并连接对应状态与用户操作。
+ *
+ * @param props 组件接收的属性。
+ * @returns 供页面渲染的组件内容。
+ */
 export default function MiddleContent({
   children,
   className,

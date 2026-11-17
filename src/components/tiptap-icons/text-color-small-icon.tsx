@@ -1,5 +1,14 @@
+/**
+ * @file 编辑器图标。提供文字颜色工具使用的 SVG 图标组件。
+ */
 import * as React from 'react';
 
+/**
+ * 渲染文字颜色工具使用的 SVG 图标。
+ *
+ * @param props 组件接收的属性。
+ * @returns 供页面渲染的组件内容。
+ */
 export const TextColorSmallIcon = React.memo(
   ({ className, ...props }: React.SVGProps<SVGSVGElement>) => {
     return (

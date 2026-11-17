@@ -1,3 +1,6 @@
+/**
+ * @file 新增用户表单。组织新增用户表单的界面与交互。
+ */
 import type React from 'react';
 import { useState } from 'react';
 import { Modal, Form, Input, DatePicker, Button, message } from 'antd';
@@ -20,6 +23,12 @@ interface AddUserModalProps {
   initialValues?: Partial<AddUserFormData>;
 }
 
+/**
+ * 呈现新增用户表单，并连接对应状态与用户操作。
+ *
+ * @param props 组件接收的属性。
+ * @returns 供页面渲染的组件内容。
+ */
 const AddUser: React.FC<AddUserModalProps> = ({
   visible,
   onCancel,
@@ -30,6 +39,9 @@ const AddUser: React.FC<AddUserModalProps> = ({
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
 
+  /**
+   * 校验表单数据后提交当前操作。
+   */
   const handleSubmit = async () => {
     try {
       setLoading(true);
@@ -53,6 +65,9 @@ const AddUser: React.FC<AddUserModalProps> = ({
     }
   };
 
+  /**
+   * 关闭当前弹窗并清理临时输入状态。
+   */
   const handleCancel = () => {
     form.resetFields();
     onCancel();

@@ -1,3 +1,6 @@
+/**
+ * @file 写作技能选择器。选择适用技能、填写输入，并管理用户自定义技能。
+ */
 import { useEffect, useRef, useState } from 'react';
 import {
   Alert,
@@ -21,10 +24,22 @@ import {
   type WritingSkillSummary,
 } from '@/api/agent-skills';
 
+/**
+ * 将技能操作失败转换为简洁的提示文本。
+ *
+ * @param error 本次操作捕获的异常。
+ * @returns 本次操作整理后的结果。
+ */
 const errorText = (error: any) => {
   const text = error.response?.data?.message ?? error.message;
   return Array.isArray(text) ? text.join('，') : text;
 };
+/**
+ * 从技能详情提取可供编辑表单使用的定义。
+ *
+ * @param skill 当前写作技能定义或快照。
+ * @returns WritingSkillDefinition 类型的处理结果。
+ */
 const definitionOf = (skill: WritingSkill): WritingSkillDefinition => ({
   ...(skill.workflow ? { workflow: skill.workflow } : {}),
   name: skill.name,
@@ -60,6 +75,12 @@ const newDefinition: WritingSkillDefinition = {
   enabled: true,
 };
 
+/**
+ * 呈现写作技能选择器，并连接对应状态与用户操作。
+ *
+ * @param props 组件接收的属性。
+ * @returns 供页面渲染的组件内容。
+ */
 export function AgentSkillSuggestions({
   skills,
   disabled,
@@ -92,6 +113,12 @@ export function AgentSkillSuggestions({
   );
 }
 
+/**
+ * 呈现写作技能选择器，并连接对应状态与用户操作。
+ *
+ * @param props 组件接收的属性。
+ * @returns 供页面渲染的组件内容。
+ */
 export default function AgentSkillPicker({
   open,
   onOpenChange,
@@ -128,6 +155,9 @@ export default function AgentSkillPicker({
     [],
   );
 
+  /**
+   * 加载技能目录并忽略已经过期的请求响应。
+   */
   const load = async () => {
     const token = ++generation.current;
     setCatalogLoading(true);
@@ -149,6 +179,12 @@ export default function AgentSkillPicker({
     };
   }, [open, managerOpen]);
 
+  /**
+   * 将选中技能填入编辑表单，开始创建个人副本或修改。
+   *
+   * @param summary 已经生成的内容摘要（可选）。
+   * @param copy 是否创建当前内容的副本。
+   */
   const beginEditing = async (summary?: WritingSkillSummary, copy = false) => {
     const token = ++loadingDefinition.current;
     setEditError('');
@@ -171,6 +207,9 @@ export default function AgentSkillPicker({
       if (token === loadingDefinition.current) setPending(false);
     }
   };
+  /**
+   * 解析表单中的技能 JSON，按当前修订号保存个人技能。
+   */
   const save = async () => {
     if (!editing || mutationPending.current) return;
     setEditError('');
@@ -201,6 +240,12 @@ export default function AgentSkillPicker({
       setPending(false);
     }
   };
+  /**
+   * 确认后移除写作技能选择器中的选中项，并刷新展示。
+   *
+   * @param skill 当前写作技能定义或快照。
+   * @returns 供后续操作使用的回调或清理函数。
+   */
   const remove = (skill: WritingSkillSummary) =>
     Modal.confirm({
       title: `删除“${skill.name}”？`,

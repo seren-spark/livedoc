@@ -1,3 +1,6 @@
+/**
+ * @file 知识库与写作 API。封装文档、导入、资源、检索和流式写作请求。
+ */
 import axios from 'axios';
 import { readSseStream } from './sse';
 
@@ -365,6 +368,12 @@ export interface AiWriteStreamHandlers {
   onError: (message: string) => void;
 }
 
+/**
+ * 提交知识文档的索引请求。
+ *
+ * @param payload 需要传递或持久化的业务数据。
+ * @returns 服务端返回的文档索引任务信息。
+ */
 export async function indexKnowledgeDocument(payload: DocumentIndexPayload) {
   const { data } = await ragClient.post('/documents/index', payload);
   return data as {
@@ -375,11 +384,23 @@ export async function indexKnowledgeDocument(payload: DocumentIndexPayload) {
   };
 }
 
+/**
+ * 创建正式知识文档，返回服务端分配的身份和版本。
+ *
+ * @param payload 需要传递或持久化的业务数据。
+ * @returns 知识文档记录。
+ */
 export async function createKnowledgeDocument(payload: DocumentCreatePayload) {
   const { data } = await ragClient.post('/documents', payload);
   return data as DocumentRecord;
 }
 
+/**
+ * 按空间、分类和搜索条件分页读取知识文档。
+ *
+ * @param params 当前知识文档记录（可选）。
+ * @returns 当前页条目与符合条件的总数。
+ */
 export async function listKnowledgeDocuments(params?: {
   category_id?: string;
   page?: number;
@@ -400,6 +421,12 @@ export async function listKnowledgeDocuments(params?: {
   };
 }
 
+/**
+ * 分页读取已发布且公开可见的文章。
+ *
+ * @param params 查询或调用所需的绑定参数（可选）。
+ * @returns 当前页条目与符合条件的总数。
+ */
 export async function listPublicArticles(params?: {
   page?: number;
   page_size?: number;
@@ -414,16 +441,35 @@ export async function listPublicArticles(params?: {
   };
 }
 
+/**
+ * 读取指定文章的公开发布内容。
+ *
+ * @param docId 知识文档标识。
+ * @returns 知识文档记录。
+ */
 export async function getPublicArticle(docId: string) {
   const { data } = await ragClient.get(`/public/articles/${docId}`);
   return data as DocumentRecord;
 }
 
+/**
+ * 读取指定知识文档及其编辑内容。
+ *
+ * @param docId 知识文档标识。
+ * @returns 知识文档记录。
+ */
 export async function getKnowledgeDocument(docId: string) {
   const { data } = await ragClient.get(`/documents/${docId}`);
   return data as DocumentRecord;
 }
 
+/**
+ * 提交文档内容与期望版本，保留乐观锁校验。
+ *
+ * @param docId 知识文档标识。
+ * @param payload 需要传递或持久化的业务数据。
+ * @returns 知识文档记录。
+ */
 export async function updateKnowledgeDocument(
   docId: string,
   payload: Partial<DocumentCreatePayload> & { expected_version?: number },
@@ -432,26 +478,56 @@ export async function updateKnowledgeDocument(
   return data as DocumentRecord;
 }
 
+/**
+ * 提交知识文档删除请求。
+ *
+ * @param docId 知识文档标识。
+ * @returns 整理后的状态与操作结果对象。
+ */
 export async function deleteKnowledgeDocument(docId: string) {
   const { data } = await ragClient.delete(`/documents/${docId}`);
   return data as { status: 'deleted'; doc_id: string };
 }
 
+/**
+ * 为指定知识文档重新提交索引。
+ *
+ * @param docId 知识文档标识。
+ * @returns IndexJob 类型的处理结果。
+ */
 export async function reindexKnowledgeDocument(docId: string) {
   const { data } = await ragClient.post(`/documents/${docId}/reindex`);
   return data as IndexJob;
 }
 
+/**
+ * 读取失败响应中的错误说明，整理为页面可展示的异常。
+ *
+ * @param response 上游服务或 HTTP 接口返回的响应。
+ * @returns Error 类型的处理结果。
+ */
 async function parseFetchError(response: Response) {
   const payload = await response.json().catch(() => null);
   return new Error(payload?.detail || `请求失败（${response.status}）`);
 }
 
+/**
+ * 从本地会话构造带身份凭证的请求头。
+ *
+ * @returns 整理后的状态与操作结果对象；未找到或不可用时可能为空。
+ */
 function authHeaders() {
   const token = sessionStorage.getItem('token');
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
+/**
+ * 上传待解析文件，创建导入草稿与后台任务。
+ *
+ * @param file 待上传或解析的文件。
+ * @param metadata 来源、权限或版本等附加元数据。
+ * @returns 文档导入记录。
+ */
 export async function uploadDocumentImport(
   file: File,
   metadata: {
@@ -476,11 +552,24 @@ export async function uploadDocumentImport(
   return (await response.json()) as DocumentImportRecord;
 }
 
+/**
+ * 读取导入草稿、解析状态与关联资源。
+ *
+ * @param importId 文档导入记录标识。
+ * @returns 文档导入记录。
+ */
 export async function getDocumentImport(importId: string) {
   const { data } = await ragClient.get(`/document-imports/${importId}`);
   return data as DocumentImportRecord;
 }
 
+/**
+ * 保存用户对解析结果的正文或元数据修改。
+ *
+ * @param importId 文档导入记录标识。
+ * @param payload 需要传递或持久化的业务数据。
+ * @returns 文档导入记录。
+ */
 export async function updateDocumentImport(
   importId: string,
   payload: {
@@ -497,11 +586,23 @@ export async function updateDocumentImport(
   return data as DocumentImportRecord;
 }
 
+/**
+ * 重新提交失败的文件解析任务。
+ *
+ * @param importId 文档导入记录标识。
+ * @returns 文档导入记录。
+ */
 export async function retryDocumentImport(importId: string) {
   const { data } = await ragClient.post(`/document-imports/${importId}/retry`);
   return data as DocumentImportRecord;
 }
 
+/**
+ * 确认解析结果，创建或更新正式知识文档。
+ *
+ * @param importId 文档导入记录标识。
+ * @returns 知识文档记录。
+ */
 export async function confirmDocumentImport(importId: string) {
   const { data } = await ragClient.post(
     `/document-imports/${importId}/confirm`,
@@ -535,6 +636,12 @@ export async function uploadDocumentAsset(
   return (await response.json()) as DocumentAsset;
 }
 
+/**
+ * 携带身份凭证下载图片资源，供编辑器生成 Blob URL。
+ *
+ * @param assetId 图片资源标识。
+ * @returns 下载的文件内容。
+ */
 export async function fetchDocumentAssetBlob(assetId: string) {
   const response = await fetch(`${ragBaseURL}/assets/${assetId}/content`, {
     headers: authHeaders(),
@@ -543,16 +650,35 @@ export async function fetchDocumentAssetBlob(assetId: string) {
   return response.blob();
 }
 
+/**
+ * 重新请求图片内容分析。
+ *
+ * @param assetId 图片资源标识。
+ * @returns 图片资源记录。
+ */
 export async function retryDocumentAsset(assetId: string) {
   const { data } = await ragClient.post(`/assets/${assetId}/retry`);
   return data as DocumentAsset;
 }
 
+/**
+ * 向指定知识范围提交检索问题，返回引用证据。
+ *
+ * @param payload 需要传递或持久化的业务数据。
+ * @returns KnowledgeSearchResponse 类型的处理结果。
+ */
 export async function searchKnowledge(payload: KnowledgeSearchPayload) {
   const { data } = await ragClient.post('/knowledge/search', payload);
   return data as KnowledgeSearchResponse;
 }
 
+/**
+ * 将编辑器辅助写作动作与上下文整理为提示文本。
+ *
+ * @param payload 需要传递或持久化的业务数据。
+ * @param signal 取消信号，用于中止请求和后台处理（可选）。
+ * @returns AiWriteResponse 类型的处理结果。
+ */
 export async function buildAiWritePrompt(
   payload: AiWritePayload,
   signal?: AbortSignal,
@@ -565,6 +691,13 @@ export async function buildAiWritePrompt(
   return data as AiWriteResponse;
 }
 
+/**
+ * 提交选区或光标上下文，获取辅助写作结果。
+ *
+ * @param payload 需要传递或持久化的业务数据。
+ * @param signal 取消信号，用于中止请求和后台处理（可选）。
+ * @returns 整理后的文本或标识。
+ */
 export async function requestEditorAssist(
   payload: EditorAssistPayload,
   signal?: AbortSignal,
@@ -594,6 +727,13 @@ export async function requestEditorAssist(
   return result.answer;
 }
 
+/**
+ * 发起流式写作请求，并将文本增量与追踪信息交给调用方。
+ *
+ * @param payload 需要传递或持久化的业务数据。
+ * @param handlers 针对不同事件的处理回调集合。
+ * @param signal 取消信号，用于中止请求和后台处理（可选）。
+ */
 export async function streamAiWrite(
   payload: AiWritePayload,
   handlers: AiWriteStreamHandlers,
@@ -667,15 +807,30 @@ export async function streamAiWrite(
   }, 'last');
 }
 
+/**
+ * 登录本地演示用户并保存会话信息。
+ *
+ * @param email 登录邮箱。
+ * @param password 用户输入的登录密码。
+ * @returns 整理后的状态与操作结果对象。
+ */
 export async function loginDemoUser(email: string, password: string) {
   const { data } = await ragClient.post('/dev/auth/login', { email, password });
   return data as { token: string; user: DemoUser };
 }
 
+/**
+ * 退出当前演示会话并清理本地凭证。
+ */
 export async function logoutDemoUser() {
   await ragClient.post('/dev/auth/logout');
 }
 
+/**
+ * 请求服务端初始化 RAG 演示文档。
+ *
+ * @returns 知识文档记录列表；未找到或不可用时可能为空。
+ */
 export async function seedRagDemoData() {
   const { data } = await ragClient.post('/dev/seed');
   return data as {
@@ -690,6 +845,14 @@ export async function seedRagDemoData() {
   };
 }
 
+/**
+ * 提交生成结果的采纳或质量反馈。
+ *
+ * @param traceId 检索追踪标识。
+ * @param action 本次请求执行的操作类型。
+ * @param comment 用户提交的评论或反馈说明。
+ * @returns 整理后的状态与操作结果对象。
+ */
 export async function submitAiFeedback(
   traceId: string,
   action: 'inserted' | 'helpful' | 'unhelpful' | 'dismissed',
@@ -703,6 +866,12 @@ export async function submitAiFeedback(
   return data as { status: 'recorded'; trace_id: string; action: string };
 }
 
+/**
+ * 读取当前用户范围内的检索与生成统计。
+ *
+ * @param window 统计时间窗口。
+ * @returns RagMetrics 类型的处理结果。
+ */
 export async function getRagMetrics(window: '24h' | '7d' | '30d' = '24h') {
   const { data } = await ragClient.get('/metrics/rag', {
     params: { window },

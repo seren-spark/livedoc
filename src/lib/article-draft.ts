@@ -1,3 +1,6 @@
+/**
+ * @file 文章草稿工具。生成账号隔离的恢复键，校验发布字段并整理错误提示。
+ */
 import type { ArticleContent } from '@/api/articles';
 
 export interface ArticleRecovery {
@@ -6,8 +9,22 @@ export interface ArticleRecovery {
   draft: ArticleContent;
   saved_at: number;
 }
+/**
+ * 生成按账号与文章隔离的本地草稿备份键。
+ *
+ * @param account 用于隔离本地草稿的用户空间身份。
+ * @param id 目标记录的唯一标识。
+ * @returns 整理后的文本或标识。
+ */
 export const articleRecoveryKey = (account: string, id: string) =>
   `livedoc:article:${account}:${id}`;
+/**
+ * 读取并解析本地文章备份，忽略不可用的缓存。
+ *
+ * @param raw 尚未规范化或压缩的原始数据。
+ * @param articleId 文章标识。
+ * @returns ArticleRecovery 类型的处理结果。
+ */
 export function readArticleRecovery(
   raw: string | null,
   articleId: string,
@@ -31,6 +48,13 @@ export function readArticleRecovery(
     return null;
   }
 }
+/**
+ * 检查文章发布需要的标题、正文和元数据。
+ *
+ * @param content 待处理的正文内容。
+ * @param hasBody 当前内容集合是否包含实际正文。
+ * @returns 整理后的文本或标识。
+ */
 export function validateArticle(
   content: Pick<ArticleContent, 'title' | 'summary' | 'tags'>,
   hasBody: boolean,
@@ -43,6 +67,12 @@ export function validateArticle(
     return '最多 5 个标签，每个标签最多 20 字';
   return null;
 }
+/**
+ * 将文章接口错误整理为可读提示，保留版本冲突信息。
+ *
+ * @param error 本次操作捕获的异常。
+ * @returns 整理后的文本或标识。
+ */
 export function articleError(error: unknown): string {
   const status = (error as { response?: { status?: number } })?.response
     ?.status;

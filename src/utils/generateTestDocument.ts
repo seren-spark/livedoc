@@ -1,4 +1,7 @@
 /**
+ * @file 编辑器测试文档。生成指定规模的示例文档，用于本地功能和性能检查。
+ */
+/**
  * generateTestDocument - 生成万字测试文档
  *
  * 用于压力测试编辑器虚拟化性能
@@ -15,6 +18,10 @@ interface GenerateOptions {
 
 /**
  * 生成随机文本段落
+ *
+ * @param minWords minWords 对应的数量或范围限制。
+ * @param maxWords maxWords 对应的数量或范围限制。
+ * @returns 整理后的文本或标识。
  */
 function generateParagraph(minWords = 20, maxWords = 50): string {
   const words = [
@@ -74,6 +81,8 @@ function generateParagraph(minWords = 20, maxWords = 50): string {
 
 /**
  * 生成代码块
+ *
+ * @returns 整理后的文本或标识。
  */
 function generateCodeBlock(): string {
   const codeExamples = [
@@ -108,6 +117,8 @@ function generateCodeBlock(): string {
 
 /**
  * 生成引用块
+ *
+ * @returns 整理后的文本或标识。
  */
 function generateBlockquote(): string {
   const quotes = [
@@ -123,6 +134,9 @@ function generateBlockquote(): string {
 
 /**
  * 生成列表
+ *
+ * @param ordered 已经按业务顺序排列的条目。
+ * @returns 整理后的文本或标识。
  */
 function generateList(ordered = false): string {
   const items = [
@@ -139,6 +153,8 @@ function generateList(ordered = false): string {
 
 /**
  * 生成表格
+ *
+ * @returns 整理后的文本或标识。
  */
 function generateTable(): string {
   return `| 指标 | 优化前 | 优化后 | 提升 |
@@ -151,6 +167,10 @@ function generateTable(): string {
 
 /**
  * 生成测试文档
+ *
+ * @param targetWords 当前文稿或章节的目标篇幅。
+ * @param options 控制本次行为的可选配置。
+ * @returns 整理后的文本或标识。
  */
 export function generateTestDocument(
   targetWords = 10000,
@@ -275,6 +295,8 @@ export function generateTestDocument(
 
 /**
  * 生成超大文档（5万字+）
+ *
+ * @returns 整理后的文本或标识。
  */
 export function generateLargeDocument(): string {
   return generateTestDocument(50000, {
@@ -289,6 +311,8 @@ export function generateLargeDocument(): string {
 
 /**
  * 生成中等文档（1万字）
+ *
+ * @returns 整理后的文本或标识。
  */
 export function generateMediumDocument(): string {
   return generateTestDocument(10000);
@@ -296,6 +320,8 @@ export function generateMediumDocument(): string {
 
 /**
  * 生成小文档（3000字）
+ *
+ * @returns 整理后的文本或标识。
  */
 export function generateSmallDocument(): string {
   return generateTestDocument(3000, {

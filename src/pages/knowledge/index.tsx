@@ -1,3 +1,6 @@
+/**
+ * @file 知识库管理页。展示知识文档、分类、导入和索引状态，提供编辑与检索入口。
+ */
 import type { ReactNode } from 'react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -116,16 +119,35 @@ const importStatusLabel: Record<DocumentImportRecord['status'], string> = {
   canceled: '已取消',
 };
 
+/**
+ * 将服务端时间转换为列表可读的展示文本。
+ *
+ * @param value 待校验或转换的值（可选）。
+ * @returns 整理后的文本或标识。
+ */
 function formatTime(value?: string | null) {
   if (!value) return '-';
   return value.replace('T', ' ').slice(0, 16);
 }
 
+/**
+ * 从文档标签或分类信息中提取列表分组名称。
+ *
+ * @param record 当前知识文档记录。
+ * @returns 整理后的文本或标识。
+ */
 function getFolderName(record: DocumentRecord) {
   const firstTag = record.tags?.find(Boolean);
   return firstTag || sourceTypeLabel[record.source_type] || '未分类';
 }
 
+/**
+ * 检查文档是否属于当前选择的私有、公开或团队空间。
+ *
+ * @param record 当前知识文档记录。
+ * @param spaceKey 当前空间在界面或存储中的隔离标识。
+ * @returns 条件是否满足的判断结果。
+ */
 function matchesSpace(record: DocumentRecord, spaceKey: SpaceKey) {
   if (spaceKey === 'private') return record.visibility === 'private';
   if (spaceKey === 'recent') return true;
@@ -140,6 +162,12 @@ function matchesSpace(record: DocumentRecord, spaceKey: SpaceKey) {
   return false;
 }
 
+/**
+ * 将空间标识转换为导航中展示的名称。
+ *
+ * @param spaceKey 当前空间在界面或存储中的隔离标识。
+ * @returns 整理后的文本或标识。
+ */
 function spaceTitle(spaceKey: SpaceKey) {
   if (spaceKey === 'private') return '我的知识库';
   if (spaceKey === 'recent') return '最近文档';
@@ -147,6 +175,11 @@ function spaceTitle(spaceKey: SpaceKey) {
   return spaceKey.slice(5);
 }
 
+/**
+ * 呈现知识库管理页，并连接对应状态与用户操作。
+ *
+ * @returns 供页面渲染的组件内容。
+ */
 export default function KnowledgePage() {
   const navigate = useNavigate();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -193,6 +226,11 @@ export default function KnowledgePage() {
     Extract<DocumentRecord['visibility'], 'private' | 'team'> | 'all'
   >('all');
 
+  /**
+   * 加载当前范围内的知识文档并更新列表。
+   *
+   * @param options 控制本次行为的可选配置。
+   */
   const loadDocs = async (options: { background?: boolean } = {}) => {
     const background = options.background === true;
     if (!isLoggedIn) {
@@ -238,6 +276,9 @@ export default function KnowledgePage() {
     }
   };
 
+  /**
+   * 读取检索与生成指标，更新知识库统计。
+   */
   const loadMetrics = async () => {
     if (!isLoggedIn) {
       setMetrics(null);
@@ -294,6 +335,9 @@ export default function KnowledgePage() {
     let cancelled = false;
     let timer = 0;
     let attempt = 0;
+    /**
+     * 轮询后台任务状态，并在达到终态或组件退出时停止。
+     */
     const poll = async () => {
       if (cancelled) return;
       if (document.visibilityState === 'hidden') {
@@ -333,6 +377,9 @@ export default function KnowledgePage() {
     let cancelled = false;
     let timer = 0;
     let attempt = 0;
+    /**
+     * 轮询后台任务状态，并在达到终态或组件退出时停止。
+     */
     const poll = async () => {
       if (cancelled) return;
       if (document.visibilityState === 'hidden') {
@@ -375,11 +422,21 @@ export default function KnowledgePage() {
     setPage(1);
   }, [keyword, selectedFolder, statusFilter, visibilityFilter]);
 
+  /**
+   * 从文档列表中筛出当前用户的个人文档。
+   *
+   * @returns 知识文档记录列表。
+   */
   const personalDocs = useMemo(
     () => docs.filter((doc) => doc.visibility !== 'public'),
     [docs],
   );
 
+  /**
+   * 根据当前文档整理可切换的团队空间。
+   *
+   * @returns 整理后的字符串列表。
+   */
   const teams = useMemo(() => {
     const ids = Array.from(
       new Set(
@@ -391,6 +448,11 @@ export default function KnowledgePage() {
     return ids.sort();
   }, [personalDocs]);
 
+  /**
+   * 筛选当前空间中可展示的文档。
+   *
+   * @returns 知识文档记录列表。
+   */
   const spaceDocs = useMemo(() => {
     const scoped = personalDocs.filter((doc) =>
       matchesSpace(doc, selectedSpace),
@@ -403,11 +465,21 @@ export default function KnowledgePage() {
     return scoped;
   }, [personalDocs, selectedSpace]);
 
+  /**
+   * 整理当前空间中的文件夹或分类列表。
+   *
+   * @returns 整理后的字符串列表。
+   */
   const folders = useMemo(() => {
     const names = Array.from(new Set(spaceDocs.map(getFolderName))).sort();
     return ['全部文档', ...names];
   }, [spaceDocs]);
 
+  /**
+   * 按当前分类、搜索和状态筛选表格文档。
+   *
+   * @returns 知识文档记录列表。
+   */
   const tableDocs = useMemo(() => {
     return spaceDocs.filter((doc) => {
       const folderOk =
@@ -449,6 +521,11 @@ export default function KnowledgePage() {
     visibilityFilter,
   ]);
 
+  /**
+   * 计算各个导航范围内的文档数量。
+   *
+   * @returns 整理后的状态与操作结果对象。
+   */
   const counts = useMemo(
     () => ({
       private: personalDocs.filter((doc) => doc.visibility === 'private')
@@ -460,6 +537,11 @@ export default function KnowledgePage() {
     [personalDocs, tableDocs],
   );
 
+  /**
+   * 解析当前空间与分类，确定新建或导入文档的归属。
+   *
+   * @returns 整理后的状态与操作结果对象。
+   */
   const currentTarget = () => {
     const isTeamSpace = selectedSpace.startsWith('team:');
     const folderTag = !systemFolders.has(selectedFolder)
@@ -474,6 +556,9 @@ export default function KnowledgePage() {
     };
   };
 
+  /**
+   * 携带当前分类与空间参数打开新建文档页面。
+   */
   const openCreate = () => {
     const target = currentTarget();
     const params = new URLSearchParams({
@@ -492,10 +577,20 @@ export default function KnowledgePage() {
     navigate(`/editor/draft?${params.toString()}`);
   };
 
+  /**
+   * 根据文档或导入状态打开对应编辑入口。
+   *
+   * @param record 当前知识文档记录。
+   */
   const openEdit = (record: DocumentRecord) => {
     navigate(`/editor/draft?mode=knowledge&docId=${record.doc_id}`);
   };
 
+  /**
+   * 上传用户选择的文件，并跟踪解析任务状态。
+   *
+   * @param file 待上传或解析的文件。
+   */
   const importFile = async (file: File) => {
     const target = currentTarget();
     setImporting(true);
@@ -512,6 +607,9 @@ export default function KnowledgePage() {
     }
   };
 
+  /**
+   * 重新提交失败的导入任务并刷新状态。
+   */
   const retryImport = async () => {
     if (!activeImport) return;
     setImporting(true);
@@ -527,6 +625,9 @@ export default function KnowledgePage() {
     }
   };
 
+  /**
+   * 初始化用于体验知识检索的演示数据。
+   */
   const seedDemoData = () => {
     Modal.confirm({
       title: '生成真实 RAG 演示数据',
@@ -560,6 +661,11 @@ export default function KnowledgePage() {
     });
   };
 
+  /**
+   * 确认后删除文档并清理其索引，最后刷新文档列表。
+   *
+   * @param record 当前知识文档记录。
+   */
   const remove = (record: DocumentRecord) => {
     Modal.confirm({
       title: '删除文档',
@@ -575,6 +681,11 @@ export default function KnowledgePage() {
     });
   };
 
+  /**
+   * 为选中文档提交重新索引请求。
+   *
+   * @param record 当前知识文档记录。
+   */
   const reindex = async (record: DocumentRecord) => {
     try {
       await reindexKnowledgeDocument(record.doc_id);
@@ -586,6 +697,11 @@ export default function KnowledgePage() {
     }
   };
 
+  /**
+   * 将选中文档移入目标分类并刷新列表。
+   *
+   * @param record 当前知识文档记录。
+   */
   const moveToCategory = async (record: DocumentRecord) => {
     try {
       const tree = await getCategoryTree();
@@ -736,6 +852,11 @@ export default function KnowledgePage() {
     },
   ];
 
+  /**
+   * 按团队空间统计文档数量。
+   *
+   * @returns 整理后的状态与操作结果对象。
+   */
   const teamCounts = useMemo(() => {
     return Object.fromEntries(
       teams.map((teamId) => [
@@ -747,6 +868,15 @@ export default function KnowledgePage() {
     );
   }, [personalDocs, teams]);
 
+  /**
+   * 构造知识库左侧的导航项及数量展示。
+   *
+   * @param key 查询或存储使用的键。
+   * @param icon 当前条目使用的图标。
+   * @param label 界面展示的名称。
+   * @param count 需要读取或处理的数量。
+   * @returns 供页面渲染的组件内容。
+   */
   const renderNavItem = (
     key: SpaceKey,
     icon: ReactNode,

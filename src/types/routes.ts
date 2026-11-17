@@ -1,3 +1,6 @@
+/**
+ * @file 路由类型。声明路由项、菜单及权限相关的数据结构。
+ */
 export interface BackendRoute {
   icon: string; // 图标组件的路径
   label: string; // 菜单名称

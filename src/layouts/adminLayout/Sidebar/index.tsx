@@ -1,3 +1,6 @@
+/**
+ * @file 后台导航栏。组织后台导航栏的界面与交互。
+ */
 import { Layout, Menu } from 'antd';
 import { useState } from 'react';
 import { useRoutesContext } from '@/router/context/useRoutesContext';
@@ -6,6 +9,11 @@ import './index.scss';
 
 const { Sider } = Layout;
 
+/**
+ * 呈现后台导航栏，并连接对应状态与用户操作。
+ *
+ * @returns 供页面渲染的组件内容。
+ */
 function Sidebar() {
   const [collapsed, setCollapsed] = useState(false);
   const { menus, loading } = useRoutesContext();

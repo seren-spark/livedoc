@@ -1,3 +1,6 @@
+/**
+ * @file 自动前缀扩展。识别输入规则并延续列表等段落前缀。
+ */
 import { Extension, type Command, type CommandProps } from '@tiptap/core';
 import { Plugin, PluginKey } from 'prosemirror-state';
 import { Node as ProseMirrorNode } from 'prosemirror-model';
@@ -90,6 +93,11 @@ const autoContinuePrefixKey = new PluginKey('autoContinuePrefix');
 export const AutoContinuePrefix = Extension.create<AutoContinuePrefixOptions>({
   name: 'autoContinuePrefix',
 
+  /**
+   * 声明当前 TipTap 扩展的默认选项。
+   *
+   * @returns AutoContinuePrefixOptions 类型的处理结果。
+   */
   addOptions(): AutoContinuePrefixOptions {
     return {
       enabled: true,
@@ -99,6 +107,11 @@ export const AutoContinuePrefix = Extension.create<AutoContinuePrefixOptions>({
     };
   },
 
+  /**
+   * 注册底层 ProseMirror 插件以处理事务、事件或视图装饰。
+   *
+   * @returns 整理后的结果列表。
+   */
   addProseMirrorPlugins() {
     const options = this.options;
 
@@ -107,6 +120,13 @@ export const AutoContinuePrefix = Extension.create<AutoContinuePrefixOptions>({
         key: autoContinuePrefixKey,
 
         props: {
+          /**
+           * 处理当前组件支持的快捷键，并按需阻止默认行为。
+           *
+           * @param view 当前 ProseMirror 编辑器视图。
+           * @param event 需要处理的事件。
+           * @returns 条件是否满足的判断结果。
+           */
           handleKeyDown(view: EditorView, event: KeyboardEvent): boolean {
             if (!options.enabled) return false;
 
@@ -127,6 +147,11 @@ export const AutoContinuePrefix = Extension.create<AutoContinuePrefixOptions>({
     ];
   },
 
+  /**
+   * 注册当前扩展向编辑器暴露的命令。
+   *
+   * @returns 当前步骤的处理结果。
+   */
   addCommands() {
     return {
       // 手动触发延续前缀
@@ -166,6 +191,13 @@ export const AutoContinuePrefix = Extension.create<AutoContinuePrefixOptions>({
 });
 
 // 处理 Enter 键
+/**
+ * 处理 Enter 键
+ *
+ * @param view 当前 ProseMirror 编辑器视图。
+ * @param options 控制本次行为的可选配置。
+ * @returns 条件是否满足的判断结果。
+ */
 function handleEnterKey(
   view: EditorView,
   options: AutoContinuePrefixOptions,
@@ -215,6 +247,13 @@ function handleEnterKey(
 }
 
 // 在选区位置延续前缀
+/**
+ * 在选区位置延续前缀
+ *
+ * @param state 当前 ProseMirror 文档与选区状态。
+ * @param options 控制本次行为的可选配置。
+ * @returns Transaction 类型的处理结果。
+ */
 function continuePrefixAtSelection(
   state: EditorState,
   options: AutoContinuePrefixOptions,
@@ -244,6 +283,13 @@ function continuePrefixAtSelection(
 }
 
 // 查找匹配的前缀规则
+/**
+ * 查找匹配的前缀规则
+ *
+ * @param text 待处理的文本。
+ * @param rules 已经配置的前缀规则集合。
+ * @returns 整理后的状态与操作结果对象。
+ */
 function findMatchingPrefix(
   text: string,
   rules: PrefixRule[],
@@ -260,6 +306,13 @@ function findMatchingPrefix(
 }
 
 // 检查是否为空前缀行（只有前缀没有内容）
+/**
+ * 检查是否为空前缀行（只有前缀没有内容）
+ *
+ * @param text 待处理的文本。
+ * @param rules 已经配置的前缀规则集合。
+ * @returns 条件是否满足的判断结果。
+ */
 function isEmptyPrefixLine(text: string, rules: PrefixRule[]): boolean {
   for (const rule of rules) {
     if (!rule.enabled) continue;
@@ -279,6 +332,12 @@ export class PrefixContinuer {
   private view: EditorView;
   private options: AutoContinuePrefixOptions;
 
+  /**
+   * 初始化实例依赖与本地状态。
+   *
+   * @param view 当前 ProseMirror 编辑器视图。
+   * @param options 控制本次行为的可选配置。
+   */
   constructor(view: EditorView, options: AutoContinuePrefixOptions = {}) {
     this.view = view;
     this.options = {
@@ -292,6 +351,8 @@ export class PrefixContinuer {
 
   /**
    * 手动触发前缀延续
+   *
+   * @returns 条件是否满足的判断结果。
    */
   continuePrefix(): boolean {
     const result = continuePrefixAtSelection(this.view.state, this.options);
@@ -304,6 +365,8 @@ export class PrefixContinuer {
 
   /**
    * 添加自定义规则
+   *
+   * @param rule 当前需要匹配或更新的前缀规则。
    */
   addRule(rule: PrefixRule): void {
     if (!this.options.rules) {
@@ -314,6 +377,9 @@ export class PrefixContinuer {
 
   /**
    * 移除规则
+   *
+   * @param index 当前条目或块的序号。
+   * @returns 条件是否满足的判断结果。
    */
   removeRule(index: number): boolean {
     if (this.options.rules && this.options.rules[index]) {
@@ -325,6 +391,9 @@ export class PrefixContinuer {
 
   /**
    * 切换规则启用状态
+   *
+   * @param index 当前条目或块的序号。
+   * @returns 条件是否满足的判断结果。
    */
   toggleRule(index: number): boolean {
     if (this.options.rules && this.options.rules[index]) {
@@ -336,6 +405,8 @@ export class PrefixContinuer {
 
   /**
    * 获取当前规则列表
+   *
+   * @returns 整理后的结果列表。
    */
   getRules(): PrefixRule[] {
     return this.options.rules || [];
@@ -343,6 +414,8 @@ export class PrefixContinuer {
 
   /**
    * 检查当前行是否有可延续的前缀
+   *
+   * @returns 条件是否满足的判断结果。
    */
   hasPrefix(): boolean {
     const { state } = this.view;
@@ -361,6 +434,8 @@ export class PrefixContinuer {
 
   /**
    * 更新配置
+   *
+   * @param newOptions 准备应用的新扩展配置。
    */
   updateOptions(newOptions: Partial<AutoContinuePrefixOptions>): void {
     this.options = { ...this.options, ...newOptions };
@@ -368,6 +443,13 @@ export class PrefixContinuer {
 }
 
 // React Hook
+/**
+ * 向 React 组件提供自动延续段落前缀的状态与操作。
+ *
+ * @param editor 当前 TipTap 编辑器实例。
+ * @param customOptions 调用方传入的自定义选项（可选）。
+ * @returns 供后续操作使用的回调或清理函数。
+ */
 export function useAutoContinuePrefix(
   editor: any,
   customOptions?: Partial<AutoContinuePrefixOptions>,
@@ -376,22 +458,48 @@ export function useAutoContinuePrefix(
     ? new PrefixContinuer(editor.view, customOptions)
     : null;
 
+  /**
+   * 根据上一段匹配的前缀规则生成下一段前缀。
+   *
+   * @returns 条件是否满足的判断结果。
+   */
   const continuePrefix = (): boolean => {
     return continuer?.continuePrefix() || false;
   };
 
+  /**
+   * 加入一条新的自动前缀匹配规则。
+   *
+   * @param rule 当前需要匹配或更新的前缀规则。
+   */
   const addRule = (rule: PrefixRule): void => {
     continuer?.addRule(rule);
   };
 
+  /**
+   * 启用或停用指定前缀规则。
+   *
+   * @param index 当前条目或块的序号。
+   * @returns 条件是否满足的判断结果。
+   */
   const toggleRule = (index: number): boolean => {
     return continuer?.toggleRule(index) || false;
   };
 
+  /**
+   * 检查当前文本是否已经包含匹配规则的前缀。
+   *
+   * @returns 条件是否满足的判断结果。
+   */
   const hasPrefix = (): boolean => {
     return continuer?.hasPrefix() || false;
   };
 
+  /**
+   * 返回当前已注册的前缀规则。
+   *
+   * @returns 整理后的结果列表。
+   */
   const getRules = (): PrefixRule[] => {
     return continuer?.getRules() || [];
   };

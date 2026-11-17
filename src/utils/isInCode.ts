@@ -1,4 +1,13 @@
+/**
+ * @file 代码位置判断。判断光标所在节点及代码语言，供补全和写作行为使用。
+ */
 // 根据文件扩展名判断是否为代码文件
+/**
+ * 根据文件扩展名判断是否为代码文件
+ *
+ * @param fileName 需要保存或展示的文件名。
+ * @returns 条件是否满足的判断结果。
+ */
 function isCodeFile(fileName: string): boolean {
   const codeExtensions = [
     '.js',
@@ -43,6 +52,12 @@ function isCodeFile(fileName: string): boolean {
   return codeExtensions.includes(extension);
 }
 // 检测内容是否包含代码特征
+/**
+ * 检测内容是否包含代码特征
+ *
+ * @param content 待处理的正文内容。
+ * @returns 条件是否满足的判断结果。
+ */
 function isCodeContent(content: string): boolean {
   const codePatterns = [
     // 函数定义
@@ -85,6 +100,13 @@ function isCodeContent(content: string): boolean {
   return matches.length >= 2; // 至少匹配3个代码特征
 }
 // 检测光标是否在代码块内
+/**
+ * 检测光标是否在代码块内
+ *
+ * @param content 待处理的正文内容。
+ * @param cursorPosition 当前光标在文档中的位置。
+ * @returns 条件是否满足的判断结果。
+ */
 function isInCodeBlock(content: string, cursorPosition: number): boolean {
   const beforeCursor = content.substring(0, cursorPosition);
   const afterCursor = content.substring(cursorPosition);
@@ -147,6 +169,12 @@ interface EditorContext {
 
 //   return false;
 // }
+/**
+ * 根据光标与节点上下文判断当前位置是否在代码区域内。
+ *
+ * @param editor 当前 TipTap 编辑器实例。
+ * @returns 条件是否满足的判断结果。
+ */
 export default function isInCodeContext(
   editor:
     | { state: any; isActive: (name: string) => boolean }
@@ -165,6 +193,12 @@ export default function isInCodeContext(
     (hasIsActive && (editor as any).isActive('code'))
   );
 }
+/**
+ * 判断代码语言标识是否属于支持范围。
+ *
+ * @param language 代码块使用的语言标识。
+ * @returns 条件是否满足的判断结果。
+ */
 function isCodeLanguage(language: string): boolean {
   const codeLanguages = [
     'javascript',

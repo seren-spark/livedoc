@@ -1,3 +1,6 @@
+/**
+ * @file 前端 Vite 配置：组装 React、自动路由与 UnoCSS 插件，配置资源别名及开发服务。
+ */
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';

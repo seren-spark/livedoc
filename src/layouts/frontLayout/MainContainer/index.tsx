@@ -1,3 +1,6 @@
+/**
+ * @file 前台主内容容器。组织前台主内容容器的界面与交互。
+ */
 // 1.接收siderNode,rightSide ,中间部分做children传入
 // 2.siderVisible控制sider的显示隐藏
 // 3.menu  左侧导航栏菜单数据
@@ -14,6 +17,12 @@ interface MainContainerProps {
   menu?: MenuItem[]; //左侧导航栏
 }
 
+/**
+ * 呈现前台主内容容器，并连接对应状态与用户操作。
+ *
+ * @param props 组件接收的属性。
+ * @returns 供页面渲染的组件内容。
+ */
 export default function MainContainer(props: MainContainerProps) {
   const { menu, siderNode, siderVisible = true, children } = props;
 

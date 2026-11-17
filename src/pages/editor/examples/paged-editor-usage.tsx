@@ -1,4 +1,7 @@
 /**
+ * @file 分页编辑器示例。演示分页文档初始化、加载和编辑操作。
+ */
+/**
  * 分页编辑器使用示例
  *
  * 展示如何集成和使用 PagedEditorManager
@@ -11,6 +14,11 @@ import { PageBreak } from '../extensions/PageBreak';
 import { PagedEditorManager } from '../managers/PagedEditorManager';
 import '../styles/paged-editor.css';
 
+/**
+ * 呈现分页编辑器示例，并连接对应状态与用户操作。
+ *
+ * @returns 供页面渲染的组件内容。
+ */
 export function PagedEditorExample() {
   const editorRef = useRef<Editor | null>(null);
   const managerRef = useRef<PagedEditorManager | null>(null);
@@ -45,6 +53,11 @@ export function PagedEditorExample() {
   }, []);
 
   // 目录跳转示例
+  /**
+   * 目录跳转示例
+   *
+   * @param itemId item 对应的唯一标识。
+   */
   const handleTOCClick = (itemId: string) => {
     if (managerRef.current) {
       managerRef.current.scrollToHeading(itemId);

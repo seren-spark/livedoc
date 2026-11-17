@@ -1,3 +1,6 @@
+/**
+ * @file 登录注册弹窗。组织登录注册弹窗的界面与交互。
+ */
 import { useState } from 'react';
 import { Button, Form, Input, Modal, Select, message } from 'antd';
 import { LockOutlined, UserOutlined } from '@ant-design/icons';
@@ -24,6 +27,12 @@ const demoAccounts = [
   { label: 'Carol · Beta 团队', value: 'carol@livedoc.local' },
 ];
 
+/**
+ * 呈现登录注册弹窗，并连接对应状态与用户操作。
+ *
+ * @param props 组件接收的属性。
+ * @returns 供页面渲染的组件内容。
+ */
 export default function LoginRegisterModal({
   open = false,
   onCancel,
@@ -33,6 +42,9 @@ export default function LoginRegisterModal({
   const [form] = Form.useForm<LoginValues>();
   const [loading, setLoading] = useState(false);
 
+  /**
+   * 提交登录信息，成功后更新登录上下文。
+   */
   const handleLogin = async () => {
     try {
       const values = await form.validateFields();

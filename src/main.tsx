@@ -1,3 +1,6 @@
+/**
+ * @file 前端启动入口。创建 React 根节点并挂载路由、状态管理及全局样式。
+ */
 import { createRoot } from 'react-dom/client';
 import '@/assets/styles/index.scss';
 import App from './App.tsx';

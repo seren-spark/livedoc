@@ -1,4 +1,7 @@
 /**
+ * @file 编辑器性能面板。展示编辑器运行状态和性能指标，辅助本地调试。
+ */
+/**
  * EditorPerformanceMonitor - 编辑器性能实时监控
  *
  * 功能：
@@ -30,6 +33,12 @@ interface EditorPerformanceMonitorProps {
   position?: 'top-right' | 'top-left' | 'bottom-right' | 'bottom-left';
 }
 
+/**
+ * 呈现编辑器性能面板，并连接对应状态与用户操作。
+ *
+ * @param props 组件接收的属性。
+ * @returns 供页面渲染的组件内容。
+ */
 const EditorPerformanceMonitor: React.FC<EditorPerformanceMonitorProps> = ({
   editor,
   visible = false,
@@ -54,6 +63,11 @@ const EditorPerformanceMonitor: React.FC<EditorPerformanceMonitorProps> = ({
     if (!visible || !editor) return;
 
     // FPS 计算
+    /**
+     * FPS 计算
+     *
+     * @returns 计算得到的数值。
+     */
     const calculateFPS = () => {
       frameCountRef.current++;
       const now = performance.now();
@@ -70,12 +84,22 @@ const EditorPerformanceMonitor: React.FC<EditorPerformanceMonitorProps> = ({
     };
 
     // 统计 DOM 节点
+    /**
+     * 统计 DOM 节点
+     *
+     * @returns 计算得到的数值。
+     */
     const countDOMNodes = () => {
       if (!editor.view.dom) return 0;
       return editor.view.dom.querySelectorAll('*').length;
     };
 
     // 统计虚拟化块
+    /**
+     * 统计虚拟化块
+     *
+     * @returns 整理后的状态与操作结果对象。
+     */
     const countVirtualizedBlocks = () => {
       if (!editor.view.dom) return { virtualized: 0, visible: 0, total: 0 };
 
@@ -89,6 +113,11 @@ const EditorPerformanceMonitor: React.FC<EditorPerformanceMonitorProps> = ({
     };
 
     // 获取内存占用（仅支持 Chrome）
+    /**
+     * 获取内存占用（仅支持 Chrome）
+     *
+     * @returns 计算得到的数值。
+     */
     const getMemoryUsage = () => {
       if ('memory' in performance) {
         const memory = (performance as any).memory;
@@ -98,12 +127,20 @@ const EditorPerformanceMonitor: React.FC<EditorPerformanceMonitorProps> = ({
     };
 
     // 获取滚动位置
+    /**
+     * 获取滚动位置
+     *
+     * @returns 计算得到的数值。
+     */
     const getScrollY = () => {
       const container = editor.view.dom.closest('.tiptap') as HTMLElement;
       return container?.scrollTop || 0;
     };
 
     // 更新统计
+    /**
+     * 更新统计
+     */
     const updateStats = () => {
       const startTime = performance.now();
 

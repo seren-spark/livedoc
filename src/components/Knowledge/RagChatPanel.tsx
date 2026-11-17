@@ -1,3 +1,6 @@
+/**
+ * @file 知识问答面板。组织问题输入、流式回答、引用来源和窄屏抽屉布局。
+ */
 import { useEffect, useRef, useState, type RefObject } from 'react';
 import { Button, Drawer, Input, Select, Tooltip, Typography } from 'antd';
 import type { Editor } from '@tiptap/react';
@@ -81,11 +84,19 @@ const toolSourceLabels: Record<AgentToolCall['source'], string> = {
   request_intent: '显式意图',
 };
 
+/**
+ * 监听视口宽度，决定是否以窄屏抽屉展示问答区域。
+ *
+ * @returns 条件是否满足的判断结果。
+ */
 function useNarrowDrawer() {
   const [isNarrow, setIsNarrow] = useState(() => window.innerWidth < 768);
 
   useEffect(() => {
     const media = window.matchMedia('(max-width: 767px)');
+    /**
+     * 同步媒体查询结果，切换窄屏抽屉布局。
+     */
     const update = () => setIsNarrow(media.matches);
     update();
     media.addEventListener('change', update);
@@ -95,6 +106,12 @@ function useNarrowDrawer() {
   return isNarrow;
 }
 
+/**
+ * 渲染知识问答标题及新建会话、关闭等面板操作。
+ *
+ * @param props 组件接收的属性。
+ * @returns 供页面渲染的组件内容。
+ */
 function RagPanelHeader({
   username,
   isLoggedIn,
@@ -133,6 +150,12 @@ function RagPanelHeader({
   );
 }
 
+/**
+ * 在尚无问答时展示引导内容与示例问题。
+ *
+ * @param props 组件接收的属性。
+ * @returns 供页面渲染的组件内容。
+ */
 function EmptyConversation({
   domain,
   isGenerating,
@@ -163,6 +186,12 @@ function EmptyConversation({
   );
 }
 
+/**
+ * 渲染一轮问题、回答、来源与可执行操作。
+ *
+ * @param props 包含来源、原文位置与内容的检索引用。
+ * @returns 供页面渲染的组件内容。
+ */
 function RagTurnCard({
   turn,
   onToggleSources,
@@ -302,6 +331,12 @@ function RagTurnCard({
   );
 }
 
+/**
+ * 按会话顺序展示问答轮次，并处理生成中的展示状态。
+ *
+ * @param props 包含来源、原文位置与内容的检索引用。
+ * @returns 供页面渲染的组件内容。
+ */
 function RagConversation({
   turns,
   domain,
@@ -349,6 +384,12 @@ function RagConversation({
   );
 }
 
+/**
+ * 渲染问题输入框、提交按钮与生成取消入口。
+ *
+ * @param props 组件接收的属性。
+ * @returns 供页面渲染的组件内容。
+ */
 function RagComposer({
   query,
   domain,
@@ -418,6 +459,12 @@ function RagComposer({
   );
 }
 
+/**
+ * 呈现知识问答面板，并连接对应状态与用户操作。
+ *
+ * @param props 组件接收的属性。
+ * @returns 供页面渲染的组件内容。
+ */
 export default function RagChatPanel({
   editor,
   title,

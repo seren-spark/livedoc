@@ -1,8 +1,17 @@
+/**
+ * @file Agent 计划编辑器。让用户调整目标、大纲、约束和步骤后确认执行。
+ */
 import { useState } from 'react';
 import { Button, Input, Modal, Select, Space, message } from 'antd';
 import { ArrowDown, ArrowUp, Pencil, Plus, Trash2 } from 'lucide-react';
 import type { ExecutionPlan } from '@/api/document-agent.types';
 
+/**
+ * 呈现Agent 计划编辑器，并连接对应状态与用户操作。
+ *
+ * @param props 待校验或执行的任务计划。
+ * @returns 供页面渲染的组件内容。
+ */
 export default function AgentPlanEditor({
   plan,
   disabled,
@@ -18,11 +27,20 @@ export default function AgentPlanEditor({
   const [draft, setDraft] = useState(plan);
   const [outline, setOutline] = useState('');
   const [constraints, setConstraints] = useState('');
+  /**
+   * 将多行输入拆为去除空项的文本列表。
+   *
+   * @param text 待处理的文本。
+   * @returns 整理后的字符串列表。
+   */
   const lines = (text: string) =>
     text
       .split('\n')
       .map((line) => line.trim())
       .filter(Boolean);
+  /**
+   * 检查目标和步骤，再提交用户编辑后的完整计划。
+   */
   const save = () => {
     if (draft.steps.length > maxSteps) {
       message.warning(`当前最多支持 ${maxSteps} 步，请合并步骤`);
@@ -48,6 +66,12 @@ export default function AgentPlanEditor({
     });
     setOpen(false);
   };
+  /**
+   * 调整指定计划步骤的先后顺序。
+   *
+   * @param index 当前条目或块的序号。
+   * @param direction direction 参数（number）。
+   */
   const move = (index: number, direction: number) => {
     const steps = [...draft.steps];
     [steps[index], steps[index + direction]] = [

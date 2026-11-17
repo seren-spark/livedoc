@@ -1,3 +1,6 @@
+/**
+ * @file Markdown 内容转换。封装 Markdown 解析以及编辑器所需的数据转换。
+ */
 interface MarkdownOptions {
   breaks?: boolean;
   gfm?: boolean;
@@ -22,6 +25,12 @@ const HTML_ESCAPE_MAP: Record<string, string> = {
 };
 
 // HTML转义函数
+/**
+ * HTML转义函数
+ *
+ * @param text 待处理的文本。
+ * @returns 整理后的文本或标识。
+ */
 function escapeHtml(text: string): string {
   if (!text) return '';
   return text.replace(
@@ -31,6 +40,13 @@ function escapeHtml(text: string): string {
 }
 
 // 解析行内元素
+/**
+ * 解析行内元素
+ *
+ * @param text 待处理的文本。
+ * @param options 控制本次行为的可选配置。
+ * @returns 整理后的文本或标识。
+ */
 function parseInlineElements(
   text: string,
   options: MarkdownOptions = {},
@@ -82,6 +98,12 @@ function parseInlineElements(
 }
 
 // 完整的Markdown解析函数
+/**
+ * 将 Markdown 转为统一 AST，支持后续结构分析。
+ *
+ * @param markdown 待解析或写入的 Markdown 原文。
+ * @returns 整理后的文本或标识。
+ */
 export const parseMarkdown = (markdown: string) => {
   if (!markdown) return '<p></p>';
 

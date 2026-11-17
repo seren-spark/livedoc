@@ -1,3 +1,6 @@
+/**
+ * @file 通知。连接路由与对应业务组件，呈现通知的界面与交互。
+ */
 // import '@/pages/notification/styles/index.scss';
 // import { useScrollVisibility } from '@/hooks/useScrollVisibility';
 // import Header from '@/layouts/frontLayout/Header';

@@ -1,3 +1,6 @@
+/**
+ * @file 全局状态入口。配置 Redux Store、持久化及类型化的状态访问入口。
+ */
 import { configureStore } from '@reduxjs/toolkit';
 import { combineReducers } from 'redux';
 import { persistStore, persistReducer } from 'redux-persist';
@@ -14,6 +17,11 @@ const persistConfig = {
   storage,
 };
 // 自动构建 reducers 对象
+/**
+ * 自动构建 reducers 对象
+ *
+ * @returns Record<string, any> 类型的处理结果。
+ */
 const buildReducers = () => {
   const reducers: Record<string, any> = {};
   // console.log(sliceModules);

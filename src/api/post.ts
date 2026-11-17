@@ -1,3 +1,6 @@
+/**
+ * @file 文章请求兼容入口。保留文章相关请求的原有组织位置。
+ */
 // Copyright 2025 H
 //
 // Licensed under the Apache License, Version 2.0 (the "License");

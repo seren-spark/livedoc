@@ -1,3 +1,6 @@
+/**
+ * @file HTTP 请求封装。统一基础地址、认证头、响应解包和鉴权失效处理。
+ */
 // // utils/request.ts
 // import axios, {
 //   type AxiosInstance,
@@ -328,23 +331,58 @@ interface ApiResponse {
   message: string;
   data: any;
 }
+/**
+ * 发送带查询参数的 GET 请求，复用统一认证和错误处理。
+ *
+ * @param url 需要校验或访问的地址。
+ * @param params 查询或调用所需的绑定参数（可选）。
+ * @returns ApiResponse 类型的处理结果。
+ */
 export function get(url: string, params?: any): Promise<ApiResponse> {
   return req.get(url, { params });
 }
+/**
+ * 发送 POST 请求，复用统一认证和响应解包。
+ *
+ * @param url 需要校验或访问的地址。
+ * @param data 当前事件或操作携带的数据（可选）。
+ * @returns ApiResponse 类型的处理结果。
+ */
 export function post(url: string, data?: any): Promise<ApiResponse> {
   return req.post(url, data);
 }
 // PUT 请求
+/**
+ * PUT 请求
+ *
+ * @param url 需要校验或访问的地址。
+ * @param data 当前事件或操作携带的数据（可选）。
+ * @returns ApiResponse 类型的处理结果。
+ */
 export function put(url: string, data?: any): Promise<ApiResponse> {
   return req.put(url, data);
 }
 
 // DELETE 请求（新增）
+/**
+ * DELETE 请求（新增）
+ *
+ * @param url 需要校验或访问的地址。
+ * @param params 查询或调用所需的绑定参数（可选）。
+ * @returns ApiResponse 类型的处理结果。
+ */
 export function del(url: string, params?: any): Promise<ApiResponse> {
   return req.delete(url, { params });
 }
 
 // DELETE 请求（另一种方式，通过 data 传递参数）
+/**
+ * DELETE 请求（另一种方式，通过 data 传递参数）
+ *
+ * @param url 需要校验或访问的地址。
+ * @param data 当前事件或操作携带的数据（可选）。
+ * @returns ApiResponse 类型的处理结果。
+ */
 export function deleteWithData(url: string, data?: any): Promise<ApiResponse> {
   return req.delete(url, { data });
 }

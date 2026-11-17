@@ -1,3 +1,6 @@
+/**
+ * @file 工具栏按钮基础组件。封装工具栏按钮的交互、样式和对外导出。
+ */
 import * as React from 'react';
 
 // --- Tiptap UI Primitive ---
@@ -22,6 +25,12 @@ export interface ButtonProps
   shortcutKeys?: string;
 }
 
+/**
+ * 将快捷键组合渲染为按钮内的按键提示。
+ *
+ * @param props 组件接收的属性。
+ * @returns 供页面渲染的组件内容。
+ */
 export const ShortcutDisplay: React.FC<{ shortcuts: string[] }> = ({
   shortcuts,
 }) => {
@@ -39,6 +48,13 @@ export const ShortcutDisplay: React.FC<{ shortcuts: string[] }> = ({
   );
 };
 
+/**
+ * 呈现工具栏按钮基础组件，并连接对应状态与用户操作。
+ *
+ * @param props 组件接收的属性。
+ * @param ref 需要读取的参考资料。
+ * @returns 供页面渲染的组件内容。
+ */
 export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
   (
     {
@@ -91,6 +107,13 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
 
 Button.displayName = 'Button';
 
+/**
+ * 组合一组工具栏按钮，并统一分组布局。
+ *
+ * @param props 组件接收的属性。
+ * @param ref 需要读取的参考资料。
+ * @returns 供页面渲染的组件内容。
+ */
 export const ButtonGroup = React.forwardRef<
   HTMLDivElement,
   React.ComponentProps<'div'> & {

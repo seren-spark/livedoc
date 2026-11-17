@@ -1,3 +1,6 @@
+/**
+ * @file 资源管理。组织资源管理的界面与交互。
+ */
 import type React from 'react';
 import {
   FolderOutlined,
@@ -32,6 +35,11 @@ interface FileItem {
   size: string;
 }
 
+/**
+ * 呈现资源管理，并连接对应状态与用户操作。
+ *
+ * @returns 供页面渲染的组件内容。
+ */
 const FileManager: React.FC = () => {
   const fileData: FileItem[] = [
     {
@@ -106,6 +114,12 @@ const FileManager: React.FC = () => {
     },
   ];
 
+  /**
+   * 根据文件类型选择资源列表中的图标。
+   *
+   * @param item 本次正在处理的条目。
+   * @returns 供页面渲染的组件内容。
+   */
   const getFileIcon = (item: FileItem) => {
     if (item.type === 'folder') {
       return <FolderOutlined className="text-orange-400" />;

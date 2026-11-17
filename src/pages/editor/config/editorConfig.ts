@@ -1,3 +1,6 @@
+/**
+ * @file 编辑器扩展配置。组装 TipTap 节点、Markdown、粘贴处理和内容更新行为。
+ */
 import { Editor, Extension } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import { Markdown } from '@tiptap/markdown';
@@ -81,6 +84,11 @@ lowlight.register('css', css);
 const GlobalAttributes = Extension.create({
   name: 'globalAttributes',
 
+  /**
+   * 向适用的 TipTap 节点补充共享属性定义。
+   *
+   * @returns 供后续操作使用的回调或清理函数；未找到或不可用时可能为空。
+   */
   addGlobalAttributes() {
     return [
       {
@@ -117,6 +125,11 @@ const GlobalAttributes = Extension.create({
       },
     ];
   },
+  /**
+   * 注册当前扩展向编辑器暴露的命令。
+   *
+   * @returns Record<string, unknown> 类型的处理结果。
+   */
   addCommands() {
     return {
       // 设置 blockId（可指定节点类型）
@@ -189,6 +202,11 @@ const editor = new Editor({
 
     TableOfContents.configure({
       getIndex: getHierarchicalIndexes,
+      /**
+       * 在编辑器内容更新后同步当前扩展或页面状态。
+       *
+       * @param content 待处理的正文内容。
+       */
       onUpdate(content) {
         // 🔥 检查是否在分页模式，如果是则跳过更新（分页模式有自己的 TOC 管理）
         const state = store.getState();
@@ -272,6 +290,13 @@ const editor = new Editor({
   content: '',
   // autofocus: true,
   editorProps: {
+    /**
+     * 处理粘贴内容，并按当前编辑器规则插入。
+     *
+     * @param _view 回调签名保留的参数，当前实现不使用。
+     * @param event 需要处理的事件。
+     * @returns 条件是否满足的判断结果。
+     */
     handlePaste(_view, event) {
       try {
         const clipboardData = (event as ClipboardEvent).clipboardData;

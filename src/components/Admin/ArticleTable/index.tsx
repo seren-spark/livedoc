@@ -1,3 +1,6 @@
+/**
+ * @file 文章审核表格。组织文章审核表格的界面与交互。
+ */
 // 表格组件
 
 import type React from 'react';
@@ -44,6 +47,11 @@ interface ReviewRecord {
   avatar?: string;
 }
 
+/**
+ * 呈现文章审核表格，并连接对应状态与用户操作。
+ *
+ * @returns 供页面渲染的组件内容。
+ */
 function ArticleTable() {
   const [selectedRows, setSelectedRows] = useState<number[]>([]);
   const [modalVisible, setModalVisible] = useState(false);
@@ -125,6 +133,14 @@ function ArticleTable() {
     ],
   };
 
+  /**
+   * 提交当前条目的审核结果并更新列表状态。
+   *
+   * @param articleId 文章标识。
+   * @param status 本次需要记录或切换到的状态。
+   * @param reason 当前判断或失败的原因。
+   * @returns unknown 类型的处理结果。
+   */
   const handleReview = async (
     articleId: string,
     status: 'approved' | 'rejected',

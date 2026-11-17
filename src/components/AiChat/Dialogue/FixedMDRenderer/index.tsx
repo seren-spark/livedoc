@@ -1,3 +1,6 @@
+/**
+ * @file 对话 Markdown 展示。组织对话 Markdown 展示的界面与交互。
+ */
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import 'highlight.js/styles/github.css'; // 代码高亮样式（可选其他主题）
 import { mockMarked } from '@/utils/mdRendering';
@@ -6,6 +9,12 @@ interface MarkdownRendererProps {
   rawText: string;
 }
 
+/**
+ * 呈现对话 Markdown 展示，并连接对应状态与用户操作。
+ *
+ * @param props 组件接收的属性。
+ * @returns 供页面渲染的组件内容。
+ */
 export const FixedMarkdownRenderer = ({ rawText }: MarkdownRendererProps) => {
   const [markdownHtml, setMarkdownHtml] = useState('');
   const [error, setError] = useState(null);
@@ -17,6 +26,11 @@ export const FixedMarkdownRenderer = ({ rawText }: MarkdownRendererProps) => {
   const renderTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // 防抖渲染函数
+  /**
+   * 防抖渲染函数
+   *
+   * @param text 待处理的文本。
+   */
   const debouncedRender = useCallback(async (text: string) => {
     // 清除之前的定时器
     if (renderTimerRef.current) {
@@ -58,6 +72,11 @@ export const FixedMarkdownRenderer = ({ rawText }: MarkdownRendererProps) => {
   }, []);
 
   // 使用useMemo优化文本预处理
+  /**
+   * 使用useMemo优化文本预处理
+   *
+   * @returns 整理后的文本或标识。
+   */
   const processedText = useMemo(() => {
     if (!rawText) return '';
 

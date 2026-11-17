@@ -1,3 +1,6 @@
+/**
+ * @file 文字颜色工具。为编辑器提供文字颜色选择、快捷键和选区状态同步。
+ */
 import * as React from 'react';
 
 // --- Lib ---
@@ -35,6 +38,12 @@ export interface ColorTextButtonProps
   showShortcut?: boolean;
 }
 
+/**
+ * 展示文字颜色操作对应的快捷键提示。
+ *
+ * @param props 组件接收的属性。
+ * @returns 供页面渲染的组件内容。
+ */
 export function ColorTextShortcutBadge({
   shortcutKeys = COLOR_TEXT_SHORTCUT_KEY,
 }: {
@@ -44,9 +53,15 @@ export function ColorTextShortcutBadge({
 }
 
 /**
+ * 呈现文字颜色工具，并连接对应状态与用户操作。
+ *
  * Button component for applying text colors in a Tiptap editor.
  *
  * For custom button implementations, use the `useColorText` hook instead.
+ *
+ * @param props 组件接收的属性。
+ * @param ref 需要读取的参考资料。
+ * @returns 供页面渲染的组件内容。
  */
 export const ColorTextButton = React.forwardRef<
   HTMLButtonElement,

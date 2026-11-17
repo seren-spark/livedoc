@@ -1,3 +1,6 @@
+/**
+ * @file 封禁用户列表。组织封禁用户列表的界面与交互。
+ */
 // 用户管理
 import type React from 'react';
 import { useEffect, useState } from 'react';
@@ -19,10 +22,20 @@ interface JobPosition {
   status: 'active' | 'inactive' | 'pending';
 }
 
+/**
+ * 响应封禁用户列表中的值变化。
+ *
+ * @param checked 当前控件是否被勾选。
+ */
 const onChange = (checked: boolean) => {
   console.log(`switch to ${checked}`);
 };
 
+/**
+ * 呈现封禁用户列表，并连接对应状态与用户操作。
+ *
+ * @returns 供页面渲染的组件内容。
+ */
 function BannedUser() {
   const [selectedRows, setSelectedRows] = useState<number[]>([]);
   const [currentPage, setCurrent] = useState(1);

@@ -1,3 +1,6 @@
+/**
+ * @file 文字颜色工具。为编辑器提供文字颜色选择、快捷键和选区状态同步。
+ */
 'use client';
 
 import * as React from 'react';
@@ -97,7 +100,12 @@ export interface UseColorTextConfig {
 }
 
 /**
+ * 检查编辑器是否可编辑，以及当前选区能否设置文字颜色。
+ *
  * Checks if text color can be toggled in the current editor state
+ *
+ * @param editor 当前 TipTap 编辑器实例。
+ * @returns 条件是否满足的判断结果。
  */
 export function canColorText(editor: Editor | null): boolean {
   if (!editor || !editor.isEditable) return false;
@@ -115,7 +123,13 @@ export function canColorText(editor: Editor | null): boolean {
 }
 
 /**
+ * 检查当前选区是否已经应用指定文字颜色。
+ *
  * Checks if text color is active in the current selection
+ *
+ * @param editor 当前 TipTap 编辑器实例。
+ * @param textColor 需要应用或检查的文字颜色。
+ * @returns 条件是否满足的判断结果。
  */
 export function isColorTextActive(
   editor: Editor | null,
@@ -126,7 +140,12 @@ export function isColorTextActive(
 }
 
 /**
+ * 根据编辑器与选区状态决定是否显示文字颜色按钮。
+ *
  * Determines if the color text button should be shown
+ *
+ * @param props 当前 TipTap 编辑器实例。
+ * @returns 条件是否满足的判断结果。
  */
 export function shouldShowButton(props: {
   editor: Editor | null;
@@ -145,6 +164,8 @@ export function shouldShowButton(props: {
 }
 
 /**
+ * 组合文字颜色的可用状态、当前颜色与设置操作。
+ *
  * Custom hook that provides color text functionality for Tiptap editor
  *
  * @example
@@ -191,6 +212,9 @@ export function shouldShowButton(props: {
  *   )
  * }
  * ```
+ *
+ * @param config 运行配置。
+ * @returns 供后续操作使用的回调或清理函数。
  */
 export function useColorText(config: UseColorTextConfig) {
   const {
@@ -210,6 +234,9 @@ export function useColorText(config: UseColorTextConfig) {
   React.useEffect(() => {
     if (!editor) return;
 
+    /**
+     * 在选区变化时重新同步文字颜色工具的状态。
+     */
     const handleSelectionUpdate = () => {
       setIsVisible(shouldShowButton({ editor, hideWhenUnavailable }));
     };

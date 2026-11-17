@@ -1,5 +1,14 @@
+/**
+ * @file 编辑位置识别。分析光标、当前段落及前后文，确定 AI 辅助写作的作用范围。
+ */
 export class SmartPositionDetection {
   // 智能检测最佳插入位置
+  /**
+   * 智能检测最佳插入位置
+   *
+   * @param editor 当前 TipTap 编辑器实例。
+   * @returns 计算得到的数值。
+   */
   static detectBestInsertionPoint(editor: any): number {
     const { from } = editor.state.selection;
     const doc = editor.state.doc;
@@ -17,6 +26,13 @@ export class SmartPositionDetection {
   }
 
   // 查找关键位置
+  /**
+   * 查找关键位置
+   *
+   * @param text 待处理的文本。
+   * @param currentPos 当前节点或光标对应的位置。
+   * @returns 计算得到的数值向量或评分列表。
+   */
   private static findKeyPositions(text: string, currentPos: number): number[] {
     const positions: number[] = [];
 
@@ -47,6 +63,13 @@ export class SmartPositionDetection {
   }
 
   // 获取上下文信息
+  /**
+   * 获取上下文信息
+   *
+   * @param editor 当前 TipTap 编辑器实例。
+   * @param position 待查询或映射的文档位置。
+   * @returns 整理后的状态与操作结果对象。
+   */
   static getContextInfo(editor: any, position: number) {
     const doc = editor.state.doc;
     const fullText = doc.textContent;
@@ -61,11 +84,26 @@ export class SmartPositionDetection {
     };
   }
 
+  /**
+   * 读取光标所在段落的内容与文档位置。
+   *
+   * @param editor 当前 TipTap 编辑器实例。
+   * @param position 待查询或映射的文档位置。
+   * @returns 本次操作整理后的结果。
+   */
   private static getCurrentParagraph(editor: any, position: number) {
     const $from = editor.state.doc.resolve(position);
     return $from.parent.textContent;
   }
 
+  /**
+   * 提取光标前后限定范围内的文本上下文。
+   *
+   * @param editor 当前 TipTap 编辑器实例。
+   * @param position 待查询或映射的文档位置。
+   * @param radius 当前页前后保留或预加载的范围。
+   * @returns 本次操作整理后的结果。
+   */
   private static getSurroundingText(
     editor: any,
     position: number,

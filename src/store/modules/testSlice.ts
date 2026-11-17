@@ -1,3 +1,6 @@
+/**
+ * @file 示例状态。提供开发阶段使用的 Redux 状态示例。
+ */
 import { createSlice } from '@reduxjs/toolkit';
 export const authSlice = createSlice({
   name: 'test',

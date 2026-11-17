@@ -1,3 +1,6 @@
+/**
+ * @file 代码补全扩展。为代码块提供自定义节点视图及 AI 补全装饰。
+ */
 //带有AI建议的代码块
 
 /* eslint-disable @typescript-eslint/ban-ts-comment */
@@ -13,9 +16,19 @@ import CodeBlock from '@/components/CodeBlock';
 
 // 自定义代码块扩展，支持虚拟建议
 const CodeBlockWithSuggestion = CodeBlockLowlight.extend({
+  /**
+   * 为当前节点注册自定义的编辑器视图。
+   *
+   * @returns import("E:/LiveDoc/livedoc/node_modules/@tiptap/core/dist/index").NodeViewRenderer 类型的处理结果。
+   */
   addNodeView() {
     return ReactNodeViewRenderer(CodeBlock);
   },
+  /**
+   * 注册底层 ProseMirror 插件以处理事务、事件或视图装饰。
+   *
+   * @returns 整理后的结果列表。
+   */
   addProseMirrorPlugins() {
     let suggestionTimeout: string | number | NodeJS.Timeout | null | undefined =
       null; // 建议定时器
@@ -27,6 +40,13 @@ const CodeBlockWithSuggestion = CodeBlockLowlight.extend({
     let lastRequestFingerprint: string | null = null;
     let requestInProgress = false;
     // ✨ 优化：生成请求指纹，避免重复请求
+    /**
+     * ✨ 优化：生成请求指纹，避免重复请求
+     *
+     * @param prefix 需要匹配或补入的前缀。
+     * @param suffix 需要在当前内容后补入的文本。
+     * @returns 整理后的文本或标识。
+     */
     const generateFingerprint = (prefix: string, suffix: string): string => {
       // 取前后文的关键部分生成指纹
       const prefixKey = prefix.slice(-64); // 只取末尾64字符
@@ -34,6 +54,14 @@ const CodeBlockWithSuggestion = CodeBlockLowlight.extend({
       return `${prefixKey}|${suffixKey}`;
     };
     // 生成 AI 建议
+    /**
+     * 生成 AI 建议
+     *
+     * @param prefix 需要匹配或补入的前缀。
+     * @param suffix 需要在当前内容后补入的文本。
+     * @param abortSignal 取消信号，用于中止请求和后台处理。
+     * @returns 整理后的文本或标识。
+     */
     const generateSuggestion = async (
       prefix: string,
       suffix: string,
@@ -75,6 +103,11 @@ const CodeBlockWithSuggestion = CodeBlockLowlight.extend({
         // 状态管理
         // 字段 init() 初始化状态 apply
         state: {
+          /**
+           * 创建插件或本地存储的初始状态。
+           *
+           * @returns DecorationSet 类型的处理结果。
+           */
           init() {
             return DecorationSet.empty; //初始化为空装饰集
           },
@@ -84,6 +117,13 @@ const CodeBlockWithSuggestion = CodeBlockLowlight.extend({
            * tr: Transaction - 描述文档选择的变化
            *value:当前插件状态的当前值 也就是旧状态
            * oldState: DecorationSet - 旧的装饰集
+           */
+          /**
+           * 在状态更新时被调用
+           *
+           * @param tr 本次编辑器事务及其位置映射。
+           * @param oldState 本次事务处理前的编辑器状态。
+           * @returns DecorationSet 类型的处理结果。
            */
           apply(tr: Transaction, oldState: DecorationSet) {
             // 如果文档内容发生变化（排除纯选择变化），清除建议
@@ -130,6 +170,12 @@ const CodeBlockWithSuggestion = CodeBlockLowlight.extend({
           },
         },
         props: {
+          /**
+           * 根据当前插件状态生成编辑器展示使用的装饰集合。
+           *
+           * @param state 当前业务或插件状态。
+           * @returns DecorationSet 类型的处理结果。
+           */
           decorations(state) {
             return this.getState(state);
           },
@@ -170,6 +216,9 @@ const CodeBlockWithSuggestion = CodeBlockLowlight.extend({
           },
         },
         view: (editorView) => {
+          /**
+           * 更新代码块当前显示的 AI 补全候选。
+           */
           const updateSuggestion = async () => {
             // 防止循环更新
             if (isUpdating) {
@@ -181,6 +230,9 @@ const CodeBlockWithSuggestion = CodeBlockLowlight.extend({
             }
             const { state, dispatch } = editorView;
             const selection = state.selection;
+            /**
+             * 移除代码块的当前补全候选及相关展示。
+             */
             const clearSuggestion = () => {
               if (currentSuggestion) {
                 isUpdating = true;

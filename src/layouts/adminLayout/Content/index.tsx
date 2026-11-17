@@ -1,3 +1,6 @@
+/**
+ * @file 页面内容容器。组织页面内容容器的界面与交互。
+ */
 // @ts-nocheck
 import { Layout, Breadcrumb } from 'antd';
 
@@ -8,6 +11,11 @@ import { useAdminRoutes } from '@/router/adminRoutes';
 
 const { Content } = Layout;
 
+/**
+ * 呈现页面内容容器，并连接对应状态与用户操作。
+ *
+ * @returns 供页面渲染的组件内容。
+ */
 function ContentPage() {
   const location = useLocation();
   const adminRoute = useAdminRoutes();

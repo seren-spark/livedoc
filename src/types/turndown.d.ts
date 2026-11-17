@@ -1,3 +1,6 @@
+/**
+ * @file Turndown 类型补充。为 HTML 转 Markdown 库补充项目需要的类型声明。
+ */
 declare module 'turndown' {
   export default class TurndownService {
     constructor(options?: Record<string, unknown>);

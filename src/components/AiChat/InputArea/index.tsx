@@ -1,3 +1,6 @@
+/**
+ * @file 对话输入框。组织对话输入框的界面与交互。
+ */
 import type React from 'react';
 import { useRef, useState } from 'react';
 import { Input, Button, Space, Card, Tooltip, Dropdown, Select } from 'antd';
@@ -37,6 +40,12 @@ declare global {
   }
 }
 
+/**
+ * 呈现对话输入框，并连接对应状态与用户操作。
+ *
+ * @param props 组件接收的属性。
+ * @returns 供页面渲染的组件内容。
+ */
 function InputArea({
   quickActions,
   handleMenuClick,
@@ -53,6 +62,9 @@ function InputArea({
   const [status, setStatus] = useState('准备就绪');
   const recognitionRef = useRef<any>(null);
 
+  /**
+   * 启动浏览器语音识别，将识别内容用于输入。
+   */
   const startListening = () => {
     // 如果已经在监听，则先停止
     if (recognitionRef.current) {
@@ -118,6 +130,9 @@ function InputArea({
     }
   };
 
+  /**
+   * 停止语音识别并结束监听状态。
+   */
   const stopListening = () => {
     if (recognitionRef.current) {
       recognitionRef.current.stop();
@@ -126,6 +141,9 @@ function InputArea({
     }
   };
 
+  /**
+   * 将输入区当前内容交给上层对话发送流程。
+   */
   const handleGainMessage = () => {
     if (inputValue.trim()) {
       handleSendMessage(inputValue);

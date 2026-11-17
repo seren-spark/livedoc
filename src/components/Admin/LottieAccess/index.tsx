@@ -1,3 +1,6 @@
+/**
+ * @file 权限动画提示。组织权限动画提示的界面与交互。
+ */
 // 无权访问
 
 import { useRef, useEffect } from 'react';
@@ -6,6 +9,11 @@ import lottie from 'lottie-web';
 import animationData from '../../../../public/LottieIcon/access.json';
 import './index.scss';
 
+/**
+ * 呈现权限动画提示，并连接对应状态与用户操作。
+ *
+ * @returns 供页面渲染的组件内容。
+ */
 function LottieAccess() {
   // 创建容器引用
   const containerRef = useRef<HTMLDivElement>(null);

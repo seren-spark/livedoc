@@ -1,3 +1,6 @@
+/**
+ * @file 本地 Embedding 代理：读取部署凭据，转发文本向量化请求并返回上游结果。
+ */
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
@@ -15,6 +18,9 @@ app.use(express.urlencoded({ extended: true, limit: '50mb' }));
  * 通义千问 Embedding API 代理
  * POST /api/embedding
  * Body: { texts: string[] }
+ * 校验文本数组及代理凭据，转发向量化请求，并将结果或上游错误写入响应。
+ * @param req Express 请求，正文中的 texts 为待向量化文本数组。
+ * @param res Express 响应，用于返回向量或错误信息。
  */
 app.post('/api/embedding', async (req, res) => {
   console.log('请求了');
@@ -98,6 +104,7 @@ app.post('/api/embedding', async (req, res) => {
 });
 
 const PORT = process.env.PORT || 3001;
+/** 在服务开始监听后输出本地代理地址与配置状态，方便启动排查。 */
 app.listen(PORT, () => {
   console.log('');
   console.log('🚀 ========================================');

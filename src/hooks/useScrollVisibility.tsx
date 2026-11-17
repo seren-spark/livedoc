@@ -1,10 +1,22 @@
+/**
+ * @file 滚动显示 Hook。根据页面滚动方向更新浮动界面元素的可见性。
+ */
 // src/hooks/useScrollVisibility.ts
 import { useState, useRef, useCallback, useEffect } from 'react';
 
+/**
+ * 根据滚动位置与方向计算界面元素是否显示。
+ *
+ * @param threshold 决定是否保留或匹配的分数阈值。
+ * @returns 条件是否满足的判断结果。
+ */
 export const useScrollVisibility = (threshold = 100) => {
   const [visible, setVisible] = useState(true);
   const lastScrollY = useRef<number>(0);
 
+  /**
+   * 响应滚动事件，更新当前视图依赖的滚动状态。
+   */
   const handleScroll = useCallback(() => {
     // 记录当前滚动位置
     const currentScrollY = window.scrollY;

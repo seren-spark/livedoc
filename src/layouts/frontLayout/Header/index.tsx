@@ -1,3 +1,6 @@
+/**
+ * @file 页面顶部导航。组织页面顶部导航的界面与交互。
+ */
 // 接收1.headerMenu,
 import type React from 'react';
 import './index.scss';
@@ -112,6 +115,12 @@ const messageItems: MenuProps['items'] = [
     ),
   },
 ];
+/**
+ * 呈现页面顶部导航，并连接对应状态与用户操作。
+ *
+ * @param props 组件接收的属性（可选）。
+ * @returns 供页面渲染的组件内容。
+ */
 export default function MyHeader(props?: MyHeaderProps) {
   const { headMenu } = props || {};
   const { requireAuth, isLoggedIn } = useAuth();
@@ -122,11 +131,19 @@ export default function MyHeader(props?: MyHeaderProps) {
   const navigate = useNavigate();
   const location = useLocation();
   const visible = useScrollVisibility();
+  /**
+   * 响应导航菜单选择并跳转对应页面。
+   *
+   * @param e 当前界面事件或捕获的异常。
+   */
   const handleMenu: MenuProps['onClick'] = (e) => {
     if (e.key.startsWith('/creator/') || e.key === '/editor/draft')
       requireAuth(() => navigate(e.key));
     else navigate(e.key);
   };
+  /**
+   * 打开当前页面的登录入口。
+   */
   const handleLoginModal = () => {
     requireAuth(() => {
       message.success('点赞成功');

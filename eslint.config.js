@@ -1,3 +1,6 @@
+/**
+ * @file 前端 ESLint 配置：集中声明 TypeScript、React 与格式规则。
+ */
 import js from '@eslint/js';
 import globals from 'globals';
 import reactHooks from 'eslint-plugin-react-hooks';

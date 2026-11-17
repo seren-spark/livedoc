@@ -1,8 +1,17 @@
+/**
+ * @file Agent 回答反馈。提交用户对回答质量的评价并展示知识沉淀状态。
+ */
 import { useEffect, useRef, useState } from 'react';
 import { Button, Space, Tooltip, message } from 'antd';
 import { ThumbsDown, ThumbsUp } from 'lucide-react';
 import { agentFeedback } from '@/api/document-agent';
 
+/**
+ * 呈现Agent 回答反馈，并连接对应状态与用户操作。
+ *
+ * @param props 组件接收的属性。
+ * @returns 供页面渲染的组件内容。
+ */
 export default function AgentAnswerFeedback({
   runId,
   disabled,
@@ -25,6 +34,11 @@ export default function AgentAnswerFeedback({
       generation.current++;
     };
   }, [runId, initialValue]);
+  /**
+   * 提交回答评价，并同步页面中的反馈与知识沉淀状态。
+   *
+   * @param action 本次请求执行的操作类型。
+   */
   const submit = async (action: 'helpful' | 'incorrect') => {
     if (submitting.current || disabled || value === 'incorrect') return;
     submitting.current = true;

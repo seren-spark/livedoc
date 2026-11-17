@@ -1,3 +1,6 @@
+/**
+ * @file 举报审核列表。组织举报审核列表的界面与交互。
+ */
 // 表格组件
 import type React from 'react';
 import { useEffect, useState } from 'react';
@@ -33,6 +36,11 @@ interface Article {
   readCount: number;
 }
 
+/**
+ * 呈现举报审核列表，并连接对应状态与用户操作。
+ *
+ * @returns 供页面渲染的组件内容。
+ */
 function ReportPhp() {
   const [selectedRows, setSelectedRows] = useState<number[]>([]);
   const [modalVisible, setModalVisible] = useState(false);
@@ -103,6 +111,14 @@ function ReportPhp() {
     readCount: 1250,
   };
 
+  /**
+   * 提交当前条目的审核结果并更新列表状态。
+   *
+   * @param articleId 文章标识。
+   * @param status 本次需要记录或切换到的状态。
+   * @param reason 当前判断或失败的原因。
+   * @returns unknown 类型的处理结果。
+   */
   const handleReview = async (
     articleId: string,
     status: 'approved' | 'rejected',

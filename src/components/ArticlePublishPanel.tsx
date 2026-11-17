@@ -1,3 +1,6 @@
+/**
+ * @file 文章发布面板。收集发布信息和封面，展示保存、发布及校验状态。
+ */
 import {
   Alert,
   Input,
@@ -16,6 +19,12 @@ import type { useArticleSession } from '@/hooks/useArticleSession';
 import { fetchDocumentAssetBlob } from '@/api/rag';
 import { articleError } from '@/lib/article-draft';
 
+/**
+ * 呈现文章发布面板，并连接对应状态与用户操作。
+ *
+ * @param props 组件接收的属性。
+ * @returns 供页面渲染的组件内容。
+ */
 export default function ArticlePublishPanel({
   open,
   onClose,

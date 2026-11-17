@@ -1,3 +1,6 @@
+/**
+ * @file 文章互动区域。展示点赞收藏与评论入口，更新当前用户的互动状态。
+ */
 import { useEffect, useRef, useState } from 'react';
 import {
   Alert,
@@ -33,11 +36,23 @@ import {
 import './ArticleInteractions.scss';
 import ArticleCommentThread from './ArticleCommentThread';
 
+/**
+ * 将文章互动请求失败转换为用户可读的提示。
+ *
+ * @param error 本次操作捕获的异常。
+ * @returns "文章已撤回或不存在，暂时无法互动。" | "操作失败，请稍后重试。" 类型的处理结果。
+ */
 function interactionError(error: unknown) {
   if ((error as any)?.response?.status === 404)
     return '文章已撤回或不存在，暂时无法互动。';
   return '操作失败，请稍后重试。';
 }
+/**
+ * 呈现文章互动区域，并连接对应状态与用户操作。
+ *
+ * @param props 组件接收的属性。
+ * @returns 供页面渲染的组件内容。
+ */
 export default function ArticleInteractions({
   articleId,
   initialStats,
@@ -109,6 +124,12 @@ export default function ArticleInteractions({
       cancelled = true;
     };
   }, [articleId, isLoggedIn, username]);
+  /**
+   * 在登录后执行单次互动写入，统一管理忙碌与错误状态。
+   *
+   * @param name 目标名称。
+   * @param work 需要在受控上下文中执行的异步操作。
+   */
   const write = (name: string, work: () => Promise<void>) =>
     requireAuth(() => {
       if (writeInFlight.current) return;
@@ -122,6 +143,11 @@ export default function ArticleInteractions({
           setBusy('');
         });
     });
+  /**
+   * 新增或取消当前用户的点赞、收藏状态。
+   *
+   * @param kind 当前结果或来源的分类。
+   */
   const react = (kind: 'like' | 'favorite') => {
     const active = kind === 'like' ? !mine?.liked : !mine?.favorited;
     write(kind, async () => {
@@ -136,6 +162,9 @@ export default function ArticleInteractions({
       setStats(next);
     });
   };
+  /**
+   * 提交新评论，成功后刷新评论列表和统计数。
+   */
   const submit = () => {
     if (!text.trim()) {
       message.warning('请先写下评论');
@@ -155,6 +184,9 @@ export default function ArticleInteractions({
       message.success('评论已发布');
     });
   };
+  /**
+   * 同步评论变更后的数量与列表刷新状态。
+   */
   const commentsChanged = async () => {
     const next = await getArticleInteractions(articleId);
     setMine(next);

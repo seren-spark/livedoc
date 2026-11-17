@@ -1,3 +1,6 @@
+/**
+ * @file 创作中心文章页。展示个人草稿与已发布文章，提供发布撤回及索引重试操作。
+ */
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -33,6 +36,11 @@ const indexLabels = {
   ready: '已加入知识库',
   failed: '知识库同步失败',
 };
+/**
+ * 呈现创作中心文章页，并连接对应状态与用户操作。
+ *
+ * @returns 供页面渲染的组件内容。
+ */
 export default function CreatorArticles() {
   const navigate = useNavigate();
   const { isLoggedIn, requireAuth } = useAuth();
@@ -82,6 +90,12 @@ export default function CreatorArticles() {
     const timer = setTimeout(() => setRefresh((v) => v + 1), 5000);
     return () => clearTimeout(timer);
   }, [items]);
+  /**
+   * 执行文章列表中的发布、撤回或索引重试动作。
+   *
+   * @param article 当前文章草稿或发布记录。
+   * @param action 本次请求执行的操作类型。
+   */
   const act = useCallback(
     async (article: ArticleDraft, action: 'withdraw' | 'publish' | 'retry') => {
       setBusyId(article.article_id);

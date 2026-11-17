@@ -1,3 +1,6 @@
+/**
+ * @file 选区 AI 浮层。围绕当前选区发起辅助写作，并处理取消与候选预览。
+ */
 import React, { useEffect, useRef, useState } from 'react';
 import { Button, Space, message } from 'antd';
 import {
@@ -14,15 +17,32 @@ interface AIEditorBubbleProps {
   editor: any;
 }
 
+/**
+ * 判断请求是否因用户主动取消而结束。
+ *
+ * @param error 本次操作捕获的异常。
+ * @returns 条件是否满足的判断结果。
+ */
 function isCanceledRequest(error: any) {
   return error?.name === 'AbortError' || error?.code === 'ERR_CANCELED';
 }
 
+/**
+ * 呈现选区 AI 浮层，并连接对应状态与用户操作。
+ *
+ * @param props 组件接收的属性。
+ * @returns 供页面渲染的组件内容。
+ */
 export default function AIEditorBubble({ editor }: AIEditorBubbleProps) {
   const [loading, setLoading] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
+    /**
+     * 在按下 Escape 时取消当前 AI 请求。
+     *
+     * @param event 需要处理的事件。
+     */
     const cancelOnEscape = (event: KeyboardEvent) => {
       if (event.key === 'Escape') abortRef.current?.abort();
     };
@@ -33,6 +53,12 @@ export default function AIEditorBubble({ editor }: AIEditorBubbleProps) {
     };
   }, []);
 
+  /**
+   * 根据当前选区发起 AI 请求，并处理候选预览。
+   *
+   * @param payload 需要传递或持久化的业务数据。
+   * @returns 整理后的文本或标识。
+   */
   const requestAssist = async (
     payload: Parameters<typeof requestEditorAssist>[0],
   ) => {
@@ -49,6 +75,9 @@ export default function AIEditorBubble({ editor }: AIEditorBubbleProps) {
   if (!editor) return null;
 
   // FIM补全
+  /**
+   * FIM补全
+   */
   const handleFIM = async () => {
     setLoading(true);
     try {
@@ -78,6 +107,9 @@ export default function AIEditorBubble({ editor }: AIEditorBubbleProps) {
   };
 
   // 选中文本改错
+  /**
+   * 选中文本改错
+   */
   const handleCorrect = async () => {
     const { from, to } = editor.state.selection;
     const selectedText = editor.state.doc.textBetween(from, to);
@@ -109,6 +141,9 @@ export default function AIEditorBubble({ editor }: AIEditorBubbleProps) {
   };
 
   // 选中文本扩写
+  /**
+   * 选中文本扩写
+   */
   const handleExpand = async () => {
     const { from, to } = editor.state.selection;
     const selectedText = editor.state.doc.textBetween(from, to);

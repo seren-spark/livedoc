@@ -1,9 +1,18 @@
+/**
+ * @file 文档目录。组织文档目录的界面与交互。
+ */
 // @ts-nocheck
 import { TextSelection } from '@tiptap/pm/state';
 import type { Editor } from '@tiptap/react';
 import type { PagedEditorManager } from '../../pages/editor/managers/PagedEditorManager';
 import { message } from 'antd';
 
+/**
+ * 渲染单个标题目录项，并连接对应章节的跳转操作。
+ *
+ * @param props 组件接收的属性。
+ * @returns 供页面渲染的组件内容。
+ */
 export const ToCItem = ({ item, onItemClick }) => {
   return (
     // item.isActive && !item.isScrolledOver
@@ -24,6 +33,11 @@ export const ToCItem = ({ item, onItemClick }) => {
   );
 };
 
+/**
+ * 在文档尚无可导航标题时显示目录提示。
+ *
+ * @returns 供页面渲染的组件内容。
+ */
 export const ToCEmptyState = () => {
   return (
     <div className="empty-state">
@@ -46,12 +60,25 @@ interface TocProps {
   pagedManager?: PagedEditorManager | null;
 }
 
+/**
+ * 呈现文档目录，并连接对应状态与用户操作。
+ *
+ * @param props 组件接收的属性。
+ * @returns 供页面渲染的组件内容。
+ */
 export const Toc = ({ items = [], editor, pagedManager }: TocProps) => {
   // if (items.length === 0) {
   //   return <ToCEmptyState />
   // }
   console.log('目录结构', items);
 
+  /**
+   * 点击目录项后定位对应标题。
+   *
+   * @param e 当前界面事件或捕获的异常。
+   * @param id 目标记录的唯一标识。
+   * @param pageNumber 目标页面的页码（可选）。
+   */
   const onItemClick = async (
     e: React.MouseEvent,
     id: string,
@@ -94,6 +121,11 @@ export const Toc = ({ items = [], editor, pagedManager }: TocProps) => {
     }
   };
 
+  /**
+   * 将指定标题元素滚动到可见位置。
+   *
+   * @param id 目标记录的唯一标识。
+   */
   const scrollToElement = (id: string) => {
     // 查找标题元素 - 标题使用 blockId 属性
     const element = editor.view.dom.querySelector(`[data-block-id="${id}"]`);
@@ -108,6 +140,12 @@ export const Toc = ({ items = [], editor, pagedManager }: TocProps) => {
 
     console.log('[Toc] 找到目标元素:', element);
 
+    /**
+     * 判断容器是否可以滚动，用于选择目录跳转的滚动目标。
+     *
+     * @param el el 参数（HTMLElement）。
+     * @returns 条件是否满足的判断结果。
+     */
     const isScrollable = (el: HTMLElement) => {
       const style = window.getComputedStyle(el);
       const overflowY = style.overflowY || style.overflow;

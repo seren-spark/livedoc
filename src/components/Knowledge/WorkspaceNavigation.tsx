@@ -1,3 +1,6 @@
+/**
+ * @file 工作空间导航。管理分类树拖动、分类操作、回收站与写作模板入口。
+ */
 import { useEffect, useState } from 'react';
 import {
   Button,
@@ -46,6 +49,12 @@ interface Props {
   onChanged: () => void;
   refreshKey: string;
 }
+/**
+ * 呈现工作空间导航，并连接对应状态与用户操作。
+ *
+ * @param props 组件接收的属性。
+ * @returns 供页面渲染的组件内容。
+ */
 export default function WorkspaceNavigation({
   selected,
   onSelect,
@@ -69,6 +78,9 @@ export default function WorkspaceNavigation({
   const [templates, setTemplates] = useState<NoteTemplate[]>([]);
   const [editing, setEditing] = useState<Partial<NoteTemplate> | null>(null);
   const [busy, setBusy] = useState(false);
+  /**
+   * 加载工作空间导航所需的数据并同步界面状态。
+   */
   const load = async () => {
     try {
       setTree(await getCategoryTree());
@@ -80,6 +92,13 @@ export default function WorkspaceNavigation({
   useEffect(() => {
     void load();
   }, [refreshKey]);
+  /**
+   * 执行工作空间操作，并统一处理刷新与错误提示。
+   *
+   * @param path 目标文件路径或节点层级路径。
+   * @param input 本次操作的输入数据。
+   * @param method HTTP 请求方法。
+   */
   const perform = async (
     path: string,
     input: Record<string, unknown>,
@@ -101,6 +120,11 @@ export default function WorkspaceNavigation({
       setBusy(false);
     }
   };
+  /**
+   * 收集新分类名称并提交带当前树版本的创建请求。
+   *
+   * @param parent 目标父节点或父分类。
+   */
   const create = (parent: string | null) => {
     let name = '';
     Modal.confirm({
@@ -118,6 +142,11 @@ export default function WorkspaceNavigation({
       onOk: () => perform('', { name, parent_id: parent }),
     });
   };
+  /**
+   * 校验名称后更新分类。
+   *
+   * @param c 当前用户、空间与团队的访问身份。
+   */
   const rename = (c: NoteCategory) => {
     let name = c.name;
     Modal.confirm({
@@ -135,6 +164,12 @@ export default function WorkspaceNavigation({
       onOk: () => perform(`/${c.category_id}`, { name }, 'patch'),
     });
   };
+  /**
+   * 收集目标分类信息，执行分类移动或合并。
+   *
+   * @param c 当前用户、空间与团队的访问身份。
+   * @param merge 是否将目标内容与现有结果合并。
+   */
   const moveOrMerge = (c: NoteCategory, merge: boolean) => {
     let target: string | null = null;
     Modal.confirm({
@@ -168,6 +203,11 @@ export default function WorkspaceNavigation({
         ),
     });
   };
+  /**
+   * 让用户选择是否同时回收文档，再提交分类回收请求。
+   *
+   * @param c 当前用户、空间与团队的访问身份。
+   */
   const remove = (c: NoteCategory) => {
     let include = false;
     Modal.confirm({
@@ -193,6 +233,12 @@ export default function WorkspaceNavigation({
       },
     });
   };
+  /**
+   * 递归构造分类树节点及其操作入口。
+   *
+   * @param c 当前用户、空间与团队的访问身份。
+   * @returns 本次操作整理后的结果。
+   */
   const node = (c: NoteCategory): any => ({
     key: c.category_id,
     title: (
@@ -233,6 +279,11 @@ export default function WorkspaceNavigation({
       .sort((a, b) => a.sort_order - b.sort_order)
       .map(node),
   });
+  /**
+   * 将分类拖动结果转换为移动或排序请求。
+   *
+   * @param info info 参数（any）。
+   */
   const onDrop = async (info: any) => {
     const dragged = tree.items.find(
       (c) => c.category_id === String(info.dragNode.key),
@@ -266,6 +317,11 @@ export default function WorkspaceNavigation({
     siblings.splice(index, 0, dragged.category_id);
     await perform('/reorder', { parent_id: target.parent_id, ids: siblings });
   };
+  /**
+   * 读取回收站内容与当前版本。
+   *
+   * @param type 当前数据或节点类型。
+   */
   const loadTrash = async (type = trashType) => {
     try {
       setTrash(await getTrash(type));
@@ -277,6 +333,14 @@ export default function WorkspaceNavigation({
   useEffect(() => {
     if (trashOpen) void loadTrash();
   }, [trashOpen, trashType]);
+  /**
+   * 提交选中的回收站操作并刷新相关列表。
+   *
+   * @param action 本次请求执行的操作类型。
+   * @param ids 本次操作涉及的记录标识集合。
+   * @param include 是否包含本次可选的关联内容。
+   * @param names 目标名称集合。
+   */
   const handleTrash = async (
     action: 'restore' | 'purge',
     ids: string[],
@@ -321,6 +385,12 @@ export default function WorkspaceNavigation({
       setBusy(false);
     }
   };
+  /**
+   * 展示并处理回收站操作的最终确认。
+   *
+   * @param action 本次请求执行的操作类型。
+   * @param ids 本次操作涉及的记录标识集合。
+   */
   const confirmTrash = (action: 'restore' | 'purge', ids: string[]) => {
     if (!ids.length) return;
     let include = false;
@@ -355,6 +425,9 @@ export default function WorkspaceNavigation({
       onOk: () => handleTrash(action, ids, include),
     });
   };
+  /**
+   * 读取并更新当前可用的写作模板。
+   */
   const loadTemplates = async () => {
     try {
       setTemplates(await getTemplates());
@@ -365,6 +438,9 @@ export default function WorkspaceNavigation({
   useEffect(() => {
     if (templatesOpen) void loadTemplates();
   }, [templatesOpen]);
+  /**
+   * 保存当前模板的内容与修订号，并刷新模板列表。
+   */
   const save = async () => {
     if (!editing) return;
     setBusy(true);

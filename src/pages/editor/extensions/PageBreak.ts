@@ -1,4 +1,7 @@
 /**
+ * @file 分页符节点扩展。定义分页标记、节点属性及插入分页符命令。
+ */
+/**
  * PageBreak - 页面分隔标记节点（虚拟列表优化版）
  *
  * 用于标记分页加载中的页面边界
@@ -35,12 +38,22 @@ export const PageBreak = Node.create<PageBreakOptions>({
 
   selectable: false,
 
+  /**
+   * 声明当前 TipTap 扩展的默认选项。
+   *
+   * @returns 整理后的状态与操作结果对象。
+   */
   addOptions() {
     return {
       HTMLAttributes: {},
     };
   },
 
+  /**
+   * 声明节点属性及其 HTML 读写规则。
+   *
+   * @returns 供后续操作使用的回调或清理函数；未找到或不可用时可能为空。
+   */
   addAttributes() {
     return {
       pageNum: {
@@ -83,6 +96,11 @@ export const PageBreak = Node.create<PageBreakOptions>({
     };
   },
 
+  /**
+   * 声明从 HTML 识别当前 TipTap 节点的规则。
+   *
+   * @returns 整理后的结果列表。
+   */
   parseHTML() {
     return [
       {
@@ -91,6 +109,12 @@ export const PageBreak = Node.create<PageBreakOptions>({
     ];
   },
 
+  /**
+   * 将当前节点及其属性转换为 HTML 结构。
+   *
+   * @param options 控制本次行为的可选配置。
+   * @returns [string, Record<string, any>] 类型的处理结果。
+   */
   renderHTML({ node, HTMLAttributes }) {
     const { pageNum, isPlaceholder, placeholderHeight } = node.attrs;
     const height = placeholderHeight || 8000;
@@ -118,6 +142,11 @@ export const PageBreak = Node.create<PageBreakOptions>({
     ];
   },
 
+  /**
+   * 注册当前扩展向编辑器暴露的命令。
+   *
+   * @returns 供后续操作使用的回调或清理函数。
+   */
   addCommands() {
     return {
       setPageBreak:

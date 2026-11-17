@@ -1,3 +1,6 @@
+/**
+ * @file 收藏文章页。分页展示当前用户收藏的文章并支持取消收藏。
+ */
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Alert, Button, Empty, List, Space, Typography, message } from 'antd';
@@ -14,6 +17,11 @@ import {
 } from '@/api/articles';
 import './articles.scss';
 
+/**
+ * 呈现收藏文章页，并连接对应状态与用户操作。
+ *
+ * @returns 供页面渲染的组件内容。
+ */
 export default function FavoriteArticles() {
   const { isLoggedIn, requireAuth } = useAuth();
   const username = useSelector(
@@ -54,6 +62,11 @@ export default function FavoriteArticles() {
       cancelled = true;
     };
   }, [isLoggedIn, username, page, refresh]);
+  /**
+   * 取消文章收藏，并在当前页变空时调整分页。
+   *
+   * @param id 目标记录的唯一标识。
+   */
   const remove = async (id: string) => {
     setBusy(id);
     try {

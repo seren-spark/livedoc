@@ -1,3 +1,6 @@
+/**
+ * @file AI 候选预览。订阅候选总线，展示生成内容并处理键盘采纳操作。
+ */
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Button, Space, Tooltip } from 'antd';
 import { CheckOutlined, CloseOutlined, EditOutlined } from '@ant-design/icons';
@@ -13,6 +16,11 @@ interface AISuggestionPreviewProps {
 export default React.memo(function AISuggestionPreview({
   editor,
 }: AISuggestionPreviewProps) {
+  /**
+   * 读取共享 AI 候选事件总线。
+   *
+   * @returns AISuggestionBus 类型的处理结果。
+   */
   const bus = useMemo(() => AISuggestionBus.getInstance(), []);
   const [suggestion, setSuggestion] = useState<AISuggestion | null>(null);
   const [editable, setEditable] = useState(false);
@@ -38,6 +46,11 @@ export default React.memo(function AISuggestionPreview({
   }, [bus]);
 
   useEffect(() => {
+    /**
+     * 处理候选预览相关的键盘操作。
+     *
+     * @param e 当前界面事件或捕获的异常。
+     */
     const onKey = (e: KeyboardEvent) => {
       if (!suggestion) return;
       // Tab/Enter accept, Esc cancel
@@ -56,6 +69,9 @@ export default React.memo(function AISuggestionPreview({
       window.removeEventListener('keydown', onKey, { capture: true } as any);
   }, [suggestion]);
 
+  /**
+   * 将用户确认的候选应用到当前编辑位置。
+   */
   const handleAccept = () => {
     if (!suggestion) return;
     const textToInsert = editable ? draft : suggestion.text;

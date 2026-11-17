@@ -1,3 +1,6 @@
+/**
+ * @file 知识文档编辑会话 Hook。管理文档加载、导入确认、版本保存、图片资源与引用定位。
+ */
 // ==================== 导入依赖 ====================
 import {
   confirmDocumentImport, // 确认导入文档并创建正式文档
@@ -81,6 +84,11 @@ export function useKnowledgeDocumentSession(editor: Editor | null) {
   const expectedVersion = useRef<number | null>(null); // 乐观锁版本号(更新时必须传给后端)
 
   // ==================== 默认值计算(新建文档时使用) ====================
+  /**
+   * ==================== 默认值计算(新建文档时使用) ====================
+   *
+   * @returns 整理后的状态与操作结果对象。
+   */
   const defaults = useMemo(() => {
     // 从 URL 参数读取空间类型(私有/公开/团队)
     const space = searchParams.get('space') || 'private';
@@ -103,6 +111,11 @@ export function useKnowledgeDocumentSession(editor: Editor | null) {
   }, [searchParams]);
 
   // ==================== 标题更新(触发 dirty 状态) ====================
+  /**
+   * ==================== 标题更新(触发 dirty 状态) ====================
+   *
+   * @param value 待校验或转换的值。
+   */
   const setTitle = useCallback(
     (value: string) => {
       setTitleState(value); // 更新标题状态
@@ -119,6 +132,9 @@ export function useKnowledgeDocumentSession(editor: Editor | null) {
 
     let canceled = false; // 取消标志(用于异步清理)
 
+    /**
+     * 按已有文档、导入稿或新文档分支加载内容，并检查可恢复的本地草稿。
+     */
     const load = async () => {
       // 是否保留本地修改(dirty 或 error 状态时不清空)
       const preserveLocalChanges =
@@ -288,6 +304,9 @@ export function useKnowledgeDocumentSession(editor: Editor | null) {
   useEffect(() => {
     if (!editor || !isKnowledgeMode) return;
 
+    /**
+     * 在编辑器内容更新后同步当前扩展或页面状态。
+     */
     const onUpdate = () => {
       // 非填充期间才标记为 dirty,防止误触发
       if (!hydrating.current) setSaveState('dirty');
@@ -305,6 +324,11 @@ export function useKnowledgeDocumentSession(editor: Editor | null) {
     // 非知识库模式或无未保存修改时跳过
     if (!isKnowledgeMode || saveState !== 'dirty') return;
 
+    /**
+     * 在离开页面可能丢失修改时提示用户。
+     *
+     * @param event 需要处理的事件。
+     */
     const warn = (event: BeforeUnloadEvent) => {
       event.preventDefault(); // 阻止默认行为
       event.returnValue = ''; // Chrome 需要设置 returnValue
@@ -322,6 +346,11 @@ export function useKnowledgeDocumentSession(editor: Editor | null) {
   );
 
   // ==================== 内容准备(图片上传、Markdown 转换) ====================
+  /**
+   * ==================== 内容准备(图片上传、Markdown 转换) ====================
+   *
+   * @returns TipTap 文档 JSON列表。
+   */
   const prepareContent = useCallback(async () => {
     if (!editor) throw new Error('编辑器尚未加载');
 
@@ -363,6 +392,11 @@ export function useKnowledgeDocumentSession(editor: Editor | null) {
   }, [docId, editor, importId]);
 
   // ==================== 保存函数 ====================
+  /**
+   * 保存知识文档编辑会话 Hook中的当前修改。
+   *
+   * @param confirmImport confirmImport 参数。
+   */
   const save = useCallback(
     async (confirmImport = true) => {
       // 1. 前置校验
@@ -385,6 +419,12 @@ export function useKnowledgeDocumentSession(editor: Editor | null) {
 
       let prepared: Awaited<ReturnType<typeof prepareContent>> | undefined;
 
+      /**
+       * 保存完成后更新文档版本、资源状态与页面身份。
+       *
+       * @param record 当前知识文档记录。
+       * @param successMessage successMessage 参数（string）。
+       */
       const completeDocumentSave = async (record: DocumentRecord, successMessage: string) => {
         setDocumentRecord(record);
         expectedVersion.current = record.document_version;
@@ -612,6 +652,9 @@ export function useKnowledgeDocumentSession(editor: Editor | null) {
   );
 
   // ==================== 离开页面函数 ====================
+  /**
+   * 检查未保存内容后执行离开编辑页的操作。
+   */
   const leave = useCallback(() => {
     // 有未保存修改时弹出确认对话框
     if (
@@ -726,6 +769,12 @@ interface KnowledgeRecoveryDraft {
 }
 
 // ==================== 恢复草稿键名生成 ====================
+/**
+ * ==================== 恢复草稿键名生成 ====================
+ *
+ * @param docId 知识文档标识。
+ * @returns 整理后的文本或标识。
+ */
 function recoveryDraftKey(docId: string) {
   return `livedoc:knowledge-recovery:${docId}`;
 }
@@ -734,6 +783,9 @@ function recoveryDraftKey(docId: string) {
 /**
  * 将当前编辑内容写入浏览器本地存储
  * 用于防止浏览器崩溃导致数据丢失
+ *
+ * @param docId 知识文档标识。
+ * @param draft 当前尚未正式发布的草稿。
  */
 function writeRecoveryDraft(
   docId: string,
@@ -789,6 +841,8 @@ function readRecoveryDraft(docId: string): KnowledgeRecoveryDraft | null {
 // ==================== 清除恢复草稿 ====================
 /**
  * 删除浏览器本地存储中的恢复草稿
+ *
+ * @param docId 知识文档标识。
  */
 function clearRecoveryDraft(docId: string) {
   localStorage.removeItem(recoveryDraftKey(docId));

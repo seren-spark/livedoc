@@ -1,3 +1,6 @@
+/**
+ * @file 知识编辑器资源转换。在 Markdown、TipTap 内容和已上传图片资源之间转换。
+ */
 import type { DocumentAsset, TipTapDocument } from '@/api/rag';
 import TurndownService from 'turndown';
 
@@ -5,6 +8,13 @@ type EditorNode = Record<string, any>;
 
 export type AssetBlobMap = Map<string, string>;
 
+/**
+ * 从内部资源 URL 中提取图片资源标识。
+ *
+ * @param src 图片或资源地址。
+ * @param blobUrls 图片资源标识与 Blob URL 的映射（可选）。
+ * @returns 整理后的文本或标识。
+ */
 export function assetIdFromUrl(src: string, blobUrls?: AssetBlobMap) {
   if (blobUrls?.has(src)) return blobUrls.get(src) || null;
   const stable = src.match(/^asset:\/\/([a-zA-Z0-9_-]+)$/);
@@ -79,6 +89,11 @@ export async function hydrateMarkdownAssets(
 /**
  * 把编辑器里 data:image/... 的 Base64 图片逐张上传成 DocumentAsset，
  * 并把节点 src 改写成 /assets/{asset_id}/content
+ *
+ * @param content 待处理的正文内容。
+ * @param upload 执行图片或文件上传的回调。
+ * @param blobUrls 图片资源标识与 Blob URL 的映射。
+ * @returns TipTap 文档 JSON。
  */
 export async function persistInlineImages(
   content: TipTapDocument,
@@ -107,7 +122,13 @@ export async function persistInlineImages(
   return stabilizeEditorContent(cloned as TipTapDocument, blobUrls);
 }
 
-/**把编辑器 HTML 转成 Markdown，图片 src 统一成 /assets/{id}/content */
+/**
+ * 把编辑器 HTML 转成 Markdown，图片 src 统一成 /assets/{id}/content
+ *
+ * @param content 待处理的正文内容。
+ * @param blobUrls 图片资源标识与 Blob URL 的映射。
+ * @returns TipTap 文档 JSON。
+ */
 export function stabilizeEditorContent(
   content: TipTapDocument,
   blobUrls: AssetBlobMap,
@@ -121,6 +142,13 @@ export function stabilizeEditorContent(
   return cloned as TipTapDocument;
 }
 
+/**
+ * 将编辑器 HTML 转为可保存的 Markdown，保留内部资源引用。
+ *
+ * @param html 待转换的 HTML 内容。
+ * @param blobUrls 图片资源标识与 Blob URL 的映射。
+ * @returns 整理后的文本或标识。
+ */
 export function editorHtmlToMarkdown(html: string, blobUrls: AssetBlobMap) {
   // 把 HTML 字符串，解析成浏览器内存里的 DOM 文档对象。
   const document = new DOMParser().parseFromString(html, 'text/html');
@@ -152,7 +180,13 @@ export function editorHtmlToMarkdown(html: string, blobUrls: AssetBlobMap) {
   });
   return turndown.turndown(document.body).trim();
 }
-/** 遍历编辑器内容，收集所有图片的 asset_id（去重） */
+/**
+ *  遍历编辑器内容，收集所有图片的 asset_id（去重）
+ *
+ * @param content 待处理的正文内容。
+ * @param blobUrls 图片资源标识与 Blob URL 的映射。
+ * @returns 整理后的字符串列表。
+ */
 export function collectAssetIds(
   content: TipTapDocument,
   blobUrls: AssetBlobMap,
@@ -166,6 +200,11 @@ export function collectAssetIds(
   return [...ids];
 }
 
+/**
+ * 释放已创建的 Blob URL，避免文档切换后占用浏览器资源。
+ *
+ * @param blobUrls 图片资源标识与 Blob URL 的映射。
+ */
 export function revokeAssetBlobs(blobUrls: AssetBlobMap) {
   for (const url of blobUrls.keys()) URL.revokeObjectURL(url);
   blobUrls.clear();
@@ -199,13 +238,25 @@ async function resolveAssets(
   return byAsset;
 }
 
+/**
+ * 递归访问 TipTap JSON 节点，供图片收集和转换复用。
+ *
+ * @param node 当前语法树或编辑器节点。
+ * @param visit 访问当前语法树节点的回调。
+ */
 function walkNodes(node: EditorNode, visit: (node: EditorNode) => void) {
   visit(node);
   if (!Array.isArray(node.content)) return;
   node.content.forEach((child: EditorNode) => walkNodes(child, visit));
 }
 
-/** 把 Base64 编码的图片数据转换成 File 对象 */
+/**
+ *  把 Base64 编码的图片数据转换成 File 对象
+ *
+ * @param dataUrl 包含媒体类型与编码内容的 Data URL。
+ * @param filename 上传文件的原始名称。
+ * @returns File 类型的处理结果。
+ */
 function dataUrlToFile(dataUrl: string, filename: string) {
   // 1.正则解析 dataURL 字符串，提取出 MIME 类型和 Base64 编码的图片数据。
   const match = dataUrl.match(/^data:([^;,]+);base64,(.+)$/);
@@ -225,6 +276,12 @@ function dataUrlToFile(dataUrl: string, filename: string) {
   return new File([buffer], safeName, { type: match[1] });
 }
 
+/**
+ * 转义文本中的 Markdown 特殊字符。
+ *
+ * @param value 待校验或转换的值。
+ * @returns 整理后的文本或标识。
+ */
 function escapeMarkdown(value: string) {
   return value.replace(/[\\[\]"]/g, '\\$&');
 }

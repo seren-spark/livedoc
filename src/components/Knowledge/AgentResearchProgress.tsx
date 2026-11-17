@@ -1,3 +1,6 @@
+/**
+ * @file 研究写作进度。展示研究来源、覆盖缺口和章节状态，并提供证据定位。
+ */
 import { useEffect, useRef, useState } from 'react';
 import {
   getAgentResearch,
@@ -26,6 +29,12 @@ const labels = {
   missing: '缺少资料或内容',
   conflicted: '存在冲突',
 };
+/**
+ * 呈现研究写作进度，并连接对应状态与用户操作。
+ *
+ * @param props 当前待处理的 Agent 候选结果。
+ * @returns 供页面渲染的组件内容。
+ */
 export default function AgentResearchProgress({
   runId,
   brief: suppliedBrief,
@@ -66,6 +75,11 @@ export default function AgentResearchProgress({
     },
     [runId],
   );
+  /**
+   * 分页读取研究笔记，用请求代次避免旧响应覆盖新状态。
+   *
+   * @param offset 从原文或分页数据的哪个位置开始读取。
+   */
   const load = async (offset = 0) => {
     const current = ++generation.current;
     setPending(true);
@@ -89,6 +103,11 @@ export default function AgentResearchProgress({
   useEffect(() => {
     if (open) void load();
   }, [runId, suppliedCoverage, open]);
+  /**
+   * 按覆盖检查给出的区间截取候选正文，展示对应的文稿片段。
+   *
+   * @param item 本次正在处理的条目。
+   */
   const locate = (item: ResearchCoverage['items'][number]) => {
     const location = item.locations[0];
     const text =

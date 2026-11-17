@@ -1,8 +1,19 @@
+/**
+ * @file 图片节点扩展。定义图片节点属性、插入命令和粘贴规则。
+ */
 import fileToBase64 from '@/utils/fileTobase64';
 import { Node, nodePasteRule } from '@tiptap/core';
 import { Plugin, PluginKey } from '@tiptap/pm/state';
 import { ReactNodeViewRenderer } from '@tiptap/react';
 import { ImgView } from './reactComponent';
+/**
+ * 通过编辑器命令插入自定义图片节点。
+ *
+ * @param view ProseMirror 编辑器视图。
+ * @param nodeType 编辑器节点类型名称。
+ * @param src 图片或资源地址。
+ * @param alt 图片无法显示时的替代说明。
+ */
 const insertImageComponent = (
   view: any,
   nodeType: any,
@@ -19,6 +30,12 @@ const insertImageComponent = (
   dispatch(transaction);
 };
 // 添加判断是否为图片URL的方法
+/**
+ * 添加判断是否为图片URL的方法
+ *
+ * @param url 需要校验或访问的地址。
+ * @returns 条件是否满足的判断结果。
+ */
 function isImageUrl(url: string): boolean {
   // 检查是否为URL格式
   try {
@@ -35,6 +52,11 @@ const ImgNode = Node.create({
   name: 'image',
   group: 'block',
   content: 'inline*',
+  /**
+   * 声明当前 TipTap 扩展的默认选项。
+   *
+   * @returns 整理后的状态与操作结果对象。
+   */
   addOptions() {
     return {
       base64: true,
@@ -47,6 +69,11 @@ const ImgNode = Node.create({
     };
   },
 
+  /**
+   * 声明节点属性及其 HTML 读写规则。
+   *
+   * @returns 整理后的状态与操作结果对象。
+   */
   addAttributes() {
     return {
       src: {
@@ -108,9 +135,19 @@ const ImgNode = Node.create({
   //   ];
   // },
   // 使用封装的 React 组件
+  /**
+   * 为当前节点注册自定义的编辑器视图。
+   *
+   * @returns import("E:/LiveDoc/livedoc/node_modules/@tiptap/core/dist/index").NodeViewRenderer 类型的处理结果。
+   */
   addNodeView() {
     return ReactNodeViewRenderer(ImgView);
   },
+  /**
+   * 注册粘贴文本或内容时的节点转换规则。
+   *
+   * @returns 整理后的结果列表。
+   */
   addPasteRules() {
     return [
       // 处理 Markdown 格式的图片
@@ -125,6 +162,11 @@ const ImgNode = Node.create({
     ];
   },
 
+  /**
+   * 注册底层 ProseMirror 插件以处理事务、事件或视图装饰。
+   *
+   * @returns 整理后的结果列表。
+   */
   addProseMirrorPlugins() {
     return [
       new Plugin({

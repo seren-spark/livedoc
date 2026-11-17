@@ -1,3 +1,6 @@
+/**
+ * @file 路由状态。维护菜单与动态路由相关的全局状态。
+ */
 import type { BackendRoute } from '@/types/routes';
 import { createSlice, type PayloadAction } from '@reduxjs/toolkit';
 

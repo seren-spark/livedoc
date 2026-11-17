@@ -1,3 +1,6 @@
+/**
+ * @file 链接编辑浮层。组织链接编辑浮层的界面与交互。
+ */
 import type React from 'react';
 import { useState, useEffect, useRef } from 'react';
 import type { Editor } from '@tiptap/core';
@@ -11,6 +14,12 @@ interface LinkBubbleProps {
   onSubmit: (text: string, url: string) => void;
 }
 
+/**
+ * 呈现链接编辑浮层，并连接对应状态与用户操作。
+ *
+ * @param props 组件接收的属性。
+ * @returns 供页面渲染的组件内容。
+ */
 const CustomLinkBubble: React.FC<LinkBubbleProps> = ({
   editor,
   isVisible,
@@ -50,6 +59,13 @@ const CustomLinkBubble: React.FC<LinkBubbleProps> = ({
   }, [isVisible, editor]);
 
   // 定位气泡框到选中文本下方
+  /**
+   * 定位气泡框到选中文本下方
+   *
+   * @param editor 当前 TipTap 编辑器实例。
+   * @param from 编辑区间的起始位置。
+   * @param to 编辑区间的结束位置。
+   */
   const positionBubble = (editor: Editor, from: number, to: number) => {
     if (!bubbleRef.current) return;
 
@@ -67,6 +83,11 @@ const CustomLinkBubble: React.FC<LinkBubbleProps> = ({
   };
 
   // 处理提交
+  /**
+   * 校验表单数据后提交当前操作。
+   *
+   * @param e 当前界面事件或捕获的异常。
+   */
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (linkUrl) {

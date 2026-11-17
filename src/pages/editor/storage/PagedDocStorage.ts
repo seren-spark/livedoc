@@ -1,4 +1,7 @@
 /**
+ * @file 分页文档本地存储。使用 IndexedDB 保存文档元信息、页面内容和目录索引。
+ */
+/**
  * PagedDocStorage - 分页文档存储层
  *
  * 使用 IndexedDB 存储：
@@ -52,6 +55,9 @@ class PagedDocDB {
   private readonly DB_NAME = 'PagedDocuments';
   private readonly DB_VERSION = 1;
 
+  /**
+   * 创建插件或本地存储的初始状态。
+   */
   async init(): Promise<void> {
     return new Promise((resolve, reject) => {
       const request = indexedDB.open(this.DB_NAME, this.DB_VERSION);
@@ -95,6 +101,12 @@ class PagedDocDB {
   }
 
   // 文档元数据操作
+  /**
+   * 文档元数据操作
+   *
+   * @param docId 知识文档标识。
+   * @returns DocumentMeta 类型的处理结果。
+   */
   async getDocMeta(docId: string): Promise<DocumentMeta | null> {
     if (!this.db) await this.init();
 
@@ -108,6 +120,11 @@ class PagedDocDB {
     });
   }
 
+  /**
+   * 向 IndexedDB 保存分页文档的元信息。
+   *
+   * @param meta 事务或业务记录的附加元数据。
+   */
   async saveDocMeta(meta: DocumentMeta): Promise<void> {
     if (!this.db) await this.init();
 
@@ -122,6 +139,13 @@ class PagedDocDB {
   }
 
   // 页面内容操作
+  /**
+   * 页面内容操作
+   *
+   * @param docId 知识文档标识。
+   * @param pageNum 请求的页码。
+   * @returns PageContent 类型的处理结果。
+   */
   async getPage(docId: string, pageNum: number): Promise<PageContent | null> {
     if (!this.db) await this.init();
 
@@ -135,6 +159,11 @@ class PagedDocDB {
     });
   }
 
+  /**
+   * 保存指定分页的内容与版本信息。
+   *
+   * @param page 当前页码或页面记录。
+   */
   async savePage(page: PageContent): Promise<void> {
     if (!this.db) await this.init();
 
@@ -148,6 +177,12 @@ class PagedDocDB {
     });
   }
 
+  /**
+   * 删除分页文档中指定页面的本地记录。
+   *
+   * @param docId 知识文档标识。
+   * @param pageNum 请求的页码。
+   */
   async deletePage(docId: string, pageNum: number): Promise<void> {
     if (!this.db) await this.init();
 
@@ -162,6 +197,12 @@ class PagedDocDB {
   }
 
   // 获取文档的所有页码
+  /**
+   * 获取文档的所有页码
+   *
+   * @param docId 知识文档标识。
+   * @returns 计算得到的数值向量或评分列表。
+   */
   async getPageNumbers(docId: string): Promise<number[]> {
     if (!this.db) await this.init();
 
@@ -181,6 +222,12 @@ class PagedDocDB {
   }
 
   // 目录索引操作
+  /**
+   * 目录索引操作
+   *
+   * @param docId 知识文档标识。
+   * @returns TOCIndex 类型的处理结果。
+   */
   async getTOCIndex(docId: string): Promise<TOCIndex | null> {
     if (!this.db) await this.init();
 
@@ -194,6 +241,11 @@ class PagedDocDB {
     });
   }
 
+  /**
+   * 保存跨页标题索引，供后续目录查询和跳转使用。
+   *
+   * @param toc 文档的标题目录数据。
+   */
   async saveTOCIndex(toc: TOCIndex): Promise<void> {
     if (!this.db) await this.init();
 
@@ -208,6 +260,11 @@ class PagedDocDB {
   }
 
   // 清理文档
+  /**
+   * 删除指定文档对应的数据及关联记录。
+   *
+   * @param docId 知识文档标识。
+   */
   async deleteDocument(docId: string): Promise<void> {
     if (!this.db) await this.init();
 

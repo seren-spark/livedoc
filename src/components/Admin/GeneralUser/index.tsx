@@ -1,3 +1,6 @@
+/**
+ * @file 普通用户列表。组织普通用户列表的界面与交互。
+ */
 // 用户管理
 
 import type React from 'react';
@@ -16,6 +19,11 @@ interface JobPosition {
   status: 'active' | 'inactive' | 'pending';
 }
 
+/**
+ * 呈现普通用户列表，并连接对应状态与用户操作。
+ *
+ * @returns 供页面渲染的组件内容。
+ */
 function GeneralUser() {
   const [selectedRows, setSelectedRows] = useState<number[]>([]);
   const [currentPage, setCurrent] = useState(1);

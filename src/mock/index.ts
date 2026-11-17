@@ -1,3 +1,6 @@
+/**
+ * @file 本地模拟数据。注册开发阶段使用的模拟接口与数据。
+ */
 import type { AxiosRequestConfig } from 'axios';
 
 import Mock from 'mockjs';
@@ -559,6 +562,11 @@ Mock.mock('http://101.35.16.42:8080/editUser', 'post', (options: any) => {
   };
 });
 //获取房间列表的接口
+/**
+ * 获取房间列表的接口
+ *
+ * @returns 整理后的结果列表。
+ */
 function generateRooms() {
   const rooms = [];
   for (let i = 0; i < 50; i++) {

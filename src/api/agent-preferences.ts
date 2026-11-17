@@ -1,3 +1,6 @@
+/**
+ * @file 写作偏好 API。读取和修改个人写作偏好。
+ */
 import { ragClient } from './rag';
 
 export interface WritingPreference {
@@ -25,9 +28,20 @@ export interface PreferenceMutation {
   text?: string;
   replace_ids?: string[];
 }
+/**
+ * 读取当前用户保存的写作偏好。
+ *
+ * @returns 当前用户的偏好条目及修订号。
+ */
 export const getWritingPreferences =
   async (): Promise<WritingPreferencesState> =>
     (await ragClient.get('/ai/agent/preferences')).data;
+/**
+ * 提交写作偏好变更及期望版本。
+ *
+ * @param input 本次操作的输入数据。
+ * @returns 本次修改后的偏好状态。
+ */
 export const mutateWritingPreference = async (
   input: PreferenceMutation,
 ): Promise<WritingPreferencesState> =>

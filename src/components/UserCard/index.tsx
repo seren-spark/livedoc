@@ -1,3 +1,6 @@
+/**
+ * @file 用户信息卡片。组织用户信息卡片的界面与交互。
+ */
 import { Avatar, Typography } from 'antd';
 import React from 'react';
 import './index.scss';
@@ -9,6 +12,12 @@ interface UserCardProps {
   avatar?: string;
 }
 
+/**
+ * 呈现用户信息卡片，并连接对应状态与用户操作。
+ *
+ * @param props 组件接收的属性。
+ * @returns 供页面渲染的组件内容。
+ */
 export default function UserCard({
   name = '未知',
   description = '暂无描述',

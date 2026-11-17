@@ -1,3 +1,6 @@
+/**
+ * @file 证据核验进度。展示候选核验结果、问题片段与修正进度。
+ */
 import type {
   AgentReplanning,
   AgentVerification,
@@ -12,6 +15,12 @@ const labels: Record<AgentVerification['status'], string> = {
   incomplete: '证据核验未完成',
 };
 
+/**
+ * 呈现证据核验进度，并连接对应状态与用户操作。
+ *
+ * @param props 组件接收的属性。
+ * @returns 供页面渲染的组件内容。
+ */
 export default function AgentVerificationProgress({
   verification,
   replanning,

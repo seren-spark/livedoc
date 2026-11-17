@@ -1,7 +1,15 @@
+/**
+ * @file Agent 面板尺寸 Hook。管理侧栏宽度、拖动缩放与视口边界。
+ */
 import { useEffect, useRef, useState, type PointerEvent } from 'react';
 
 const storageKey = 'livedoc.agent.panel-width';
 const defaultWidth = 520;
+/**
+ * 维护面板宽度、拖动状态及窗口变化后的尺寸约束。
+ *
+ * @returns 供后续操作使用的回调或清理函数。
+ */
 export function useAgentPanelSize() {
   const [viewport, setViewport] = useState(window.innerWidth);
   const [preferred, setPreferred] = useState(() => {
@@ -16,9 +24,18 @@ export function useAgentPanelSize() {
   const [resizing, setResizing] = useState(false);
   const minimum = 360;
   const maximum = Math.max(minimum, Math.min(1000, viewport - 160));
+  /**
+   * 将数值限制到给定边界内。
+   *
+   * @param value 待校验或转换的值。
+   * @returns 计算得到的数值。
+   */
   const clamp = (value: number) => Math.min(maximum, Math.max(minimum, value));
   const width = clamp(preferred);
   useEffect(() => {
+    /**
+     * 根据指针或视口变化更新面板尺寸。
+     */
     const resize = () => setViewport(window.innerWidth);
     window.addEventListener('resize', resize);
     return () => window.removeEventListener('resize', resize);
@@ -30,6 +47,9 @@ export function useAgentPanelSize() {
       /* The drawer remains resizable without browser storage. */
     }
   }, [preferred]);
+  /**
+   * 结束本次拖动，并清理缩放状态。
+   */
   const stop = () => {
     drag.current = null;
     setResizing(false);

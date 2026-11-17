@@ -1,3 +1,6 @@
+/**
+ * @file 代码块扩展实验。保留代码块补全插件的实验实现。
+ */
 /* eslint-disable @typescript-eslint/ban-ts-comment */
 // @ts-nocheck
 import { Node, mergeAttributes } from '@tiptap/core';
@@ -8,6 +11,11 @@ import { codeBlock } from '@tiptap/extension-code-block';
 
 // 自定义代码块扩展，支持虚拟建议
 const CodeBlockWithSuggestion = CodeBlockLowlight.extend({
+  /**
+   * 注册底层 ProseMirror 插件以处理事务、事件或视图装饰。
+   *
+   * @returns 整理后的结果列表。
+   */
   addProseMirrorPlugins() {
     // 共享状态
     let suggestionEl = null;
@@ -15,6 +23,9 @@ const CodeBlockWithSuggestion = CodeBlockLowlight.extend({
     let suggestionTimeout = null;
 
     // 清理虚拟建议
+    /**
+     * 移除代码块的当前补全候选及相关展示。
+     */
     const clearSuggestion = () => {
       if (suggestionEl && suggestionEl.parentElement) {
         suggestionEl.parentElement.removeChild(suggestionEl);
@@ -26,6 +37,13 @@ const CodeBlockWithSuggestion = CodeBlockLowlight.extend({
       }
     };
     // 生成 AI 建议
+    /**
+     * 生成 AI 建议
+     *
+     * @param prefix 需要匹配或补入的前缀。
+     * @param suffix 需要在当前内容后补入的文本。
+     * @returns 整理后的文本或标识。
+     */
     const generateSuggestion = async (prefix, suffix) => {
       if (!fimService) {
         initFIMService();
@@ -72,6 +90,9 @@ const CodeBlockWithSuggestion = CodeBlockLowlight.extend({
         view: (editorView) => {
           // 初始化 FIM 服务
           // 更新虚拟建议位置和内容
+          /**
+           * 更新代码块当前显示的 AI 补全候选。
+           */
           const updateSuggestion = async () => {
             const { state } = editorView;
             const selection = state.selection;
@@ -162,6 +183,12 @@ const CodeBlockWithSuggestion = CodeBlockLowlight.extend({
             }, 1000); // 1秒延迟
           };
           // 创建虚拟建议元素
+          /**
+           * 创建虚拟建议元素
+           *
+           * @param text 待处理的文本。
+           * @returns 供页面渲染的组件内容。
+           */
           const createSuggestionEl = (text: string) => {
             console.log(text, 'text');
 
@@ -180,6 +207,11 @@ const CodeBlockWithSuggestion = CodeBlockLowlight.extend({
           };
 
           // 获取光标在 DOM 中的位置
+          /**
+           * 获取光标在 DOM 中的位置
+           *
+           * @returns 整理后的状态与操作结果对象。
+           */
           const getCursorPosition = () => {
             const { state } = editorView;
             const selection = state.selection;

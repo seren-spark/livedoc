@@ -1,4 +1,7 @@
 /**
+ * @file 分页虚拟滚动扩展。为分页编辑器维护高度缓存与可见范围装饰。
+ */
+/**
  * VirtualScroll - 基于 Decoration 的智能虚拟滚动（升级版）
  *
  * 核心原理（参考语雀/Notion方案）：
@@ -46,6 +49,13 @@ class HeightCache {
   private cache = new Map<string, number>(); // blockId -> 真实高度
   private totalHeight = 0;
 
+  /**
+   * 读取块的缓存高度；尚未测量时使用对应节点类型的估计高度。
+   *
+   * @param blockId 编辑块的稳定标识。
+   * @param nodeType 编辑器节点类型名称（可选）。
+   * @returns 计算得到的数值。
+   */
   get(blockId: string, nodeType?: string): number {
     return (
       this.cache.get(blockId) ??
@@ -54,6 +64,13 @@ class HeightCache {
     );
   }
 
+  /**
+   * 更新块高度，返回高度是否实际发生变化。
+   *
+   * @param blockId 编辑块的稳定标识。
+   * @param height 块节点或容器的高度。
+   * @returns 条件是否满足的判断结果。
+   */
   set(blockId: string, height: number): boolean {
     const oldHeight = this.cache.get(blockId);
     if (oldHeight === height) return false;
@@ -62,12 +79,21 @@ class HeightCache {
     return true;
   }
 
+  /**
+   * 检查指定块是否已有高度缓存。
+   *
+   * @param blockId 编辑块的稳定标识。
+   * @returns 条件是否满足的判断结果。
+   */
   has(blockId: string): boolean {
     return this.cache.has(blockId);
   }
 
   /**
    * 计算文档总高度（用于滚动条同步）
+   *
+   * @param doc 当前文档或编辑器文档节点。
+   * @returns 计算得到的数值。
    */
   calculateTotalHeight(doc: {
     descendants: (
@@ -93,6 +119,11 @@ class HeightCache {
     return total;
   }
 
+  /**
+   * 汇总当前文档所有块的缓存高度。
+   *
+   * @returns 计算得到的数值。
+   */
   getTotalHeight(): number {
     return this.totalHeight;
   }
@@ -112,6 +143,11 @@ interface BlockInfo {
 
 /**
  * 计算可视区域的块索引范围（基于块数量，非字符位置）
+ *
+ * @param view ProseMirror 编辑器视图。
+ * @param scrollContainer 负责页面或编辑器滚动的容器。
+ * @param buffer 尚未提交或解析完成的缓冲内容。
+ * @returns 整理后的状态与操作结果对象。
  */
 function calculateVisibleBlockRange(
   view: {
@@ -214,6 +250,10 @@ function calculateVisibleBlockRange(
 
 /**
  * 查找滚动容器
+ *
+ * @param editorDom 编辑器内容区域的 DOM 节点。
+ * @param selector selector 参数（string | null）（可选）。
+ * @returns 供页面渲染的组件内容。
  */
 function findScrollContainer(
   editorDom: HTMLElement,
@@ -299,6 +339,11 @@ function findScrollContainer(
 export default Extension.create({
   name: 'virtualScroll',
 
+  /**
+   * 声明当前 TipTap 扩展的默认选项。
+   *
+   * @returns 整理后的状态与操作结果对象；未找到或不可用时可能为空。
+   */
   addOptions() {
     return {
       buffer: 15, // 上下缓冲的**块数量**（优化：增加到 15 块，减少频繁切换）
@@ -312,6 +357,11 @@ export default Extension.create({
     };
   },
 
+  /**
+   * 注册底层 ProseMirror 插件以处理事务、事件或视图装饰。
+   *
+   * @returns 供页面渲染的组件内容；未找到或不可用时可能为空。
+   */
   addProseMirrorPlugins() {
     const {
       buffer,
@@ -328,6 +378,13 @@ export default Extension.create({
         key: VIRTUAL_SCROLL_KEY,
 
         state: {
+          /**
+           * 创建插件或本地存储的初始状态。
+           *
+           * @param _ 回调签名保留的参数，当前实现不使用。
+           * @param state 当前业务或插件状态。
+           * @returns 供页面渲染的组件内容；未找到或不可用时可能为空。
+           */
           init(_, state) {
             // 🔥 初始化时收集所有块，并设置默认可见范围为前 20 个块
             const blocks: BlockInfo[] = [];
@@ -363,6 +420,15 @@ export default Extension.create({
             };
           },
 
+          /**
+           * 读取事务中的可见范围和文档变化，更新虚拟滚动状态。
+           *
+           * @param tr 本次编辑器事务及其位置映射。
+           * @param value 待校验或转换的值。
+           * @param _oldState 回调签名保留的参数，当前实现不使用。
+           * @param newState 本次事务处理后的编辑器状态。
+           * @returns 供页面渲染的组件内容；未找到或不可用时可能为空。
+           */
           apply(tr, value, _oldState, newState) {
             const newValue = { ...value };
 
@@ -513,6 +579,12 @@ export default Extension.create({
         },
 
         props: {
+          /**
+           * 根据当前插件状态生成编辑器展示使用的装饰集合。
+           *
+           * @param state 当前业务或插件状态。
+           * @returns DecorationSet 类型的处理结果。
+           */
           decorations(state) {
             const pluginState = VIRTUAL_SCROLL_KEY.getState(state);
             const { visibleBlockRange, blocks, forceRenderRanges } =
@@ -650,6 +722,12 @@ export default Extension.create({
           },
         },
 
+        /**
+         * 创建插件视图并注册滚动、尺寸或节点观察逻辑。
+         *
+         * @param view ProseMirror 编辑器视图。
+         * @returns 整理后的状态与操作结果对象。
+         */
         view(view) {
           let scrollContainer: HTMLElement | null = null;
           let rafId = 0;
@@ -673,6 +751,9 @@ export default Extension.create({
           heightCache.calculateTotalHeight(view.state.doc);
 
           // 🔥 修复：初始化时立即计算可视区域
+          /**
+           * 🔥 修复：初始化时立即计算可视区域
+           */
           const initVisibleRange = () => {
             const result = calculateVisibleBlockRange(
               view,
@@ -713,6 +794,11 @@ export default Extension.create({
           };
 
           // 🔥 编辑状态管理
+          /**
+           * 🔥 编辑状态管理
+           *
+           * @param editing 当前正在编辑的条目。
+           */
           const setEditingState = (editing: boolean) => {
             if (editingTimeout) clearTimeout(editingTimeout);
 
@@ -729,6 +815,9 @@ export default Extension.create({
 
           // 🔥 滚动事件监听（使用可配置的节流）
           let scrollTimeout: NodeJS.Timeout | null = null;
+          /**
+           * 响应滚动事件，更新当前视图依赖的滚动状态。
+           */
           const handleScroll = () => {
             // 如果正在编辑且禁用编辑时虚拟化，跳过
             if (!enableWhileEditing && isEditing) {
@@ -818,6 +907,9 @@ export default Extension.create({
           });
 
           // 观察所有块节点
+          /**
+           * 观察所有块节点
+           */
           const observeBlocks = () => {
             view.dom.querySelectorAll('[data-block-id]').forEach((el) => {
               resizeObserver?.observe(el as HTMLElement);
@@ -831,6 +923,12 @@ export default Extension.create({
           }, 100);
 
           return {
+            /**
+             * 文档结构变化时重新观察块节点高度。
+             *
+             * @param view ProseMirror 编辑器视图。
+             * @param prevState 上一次更新时的编辑器状态。
+             */
             update(view, prevState) {
               // 文档结构变化时重新观察
               if (view.state.doc !== prevState.doc) {
@@ -838,6 +936,9 @@ export default Extension.create({
               }
             },
 
+            /**
+             * 组件或插件销毁时解绑监听、观察器与定时任务。
+             */
             destroy() {
               if (scrollContainer) {
                 scrollContainer.removeEventListener('scroll', handleScroll);

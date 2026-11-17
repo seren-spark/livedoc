@@ -1,3 +1,6 @@
+/**
+ * @file 用户状态。维护当前登录用户的信息及相关状态修改操作。
+ */
 import { createSlice, type PayloadAction } from '@reduxjs/toolkit';
 
 export interface UserState {

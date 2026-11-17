@@ -1,3 +1,6 @@
+/**
+ * @file 块属性扩展。维护编辑块标识和全局属性，支持后续定位与渲染。
+ */
 // @ts-nocheck
 import { Extension } from '@tiptap/core';
 import type { Editor } from '@tiptap/core';
@@ -22,6 +25,11 @@ export const BLOCK_TYPES = [
 ];
 
 // 生成唯一 blockId
+/**
+ * 生成唯一 blockId
+ *
+ * @returns 整理后的文本或标识。
+ */
 function generateBlockId(): string {
   return `blk_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 9)}`;
 }
@@ -31,6 +39,11 @@ const AUTO_BLOCK_ID_KEY = new PMPluginKey('autoBlockId');
 export const BlockAttributes = Extension.create({
   name: 'blockAttributes',
 
+  /**
+   * 声明当前 TipTap 扩展的默认选项。
+   *
+   * @returns 整理后的状态与操作结果对象。
+   */
   addOptions() {
     return {
       // 是否启用虚拟化（默认启用）
@@ -46,6 +59,11 @@ export const BlockAttributes = Extension.create({
     };
   },
 
+  /**
+   * 向适用的 TipTap 节点补充共享属性定义。
+   *
+   * @returns 供后续操作使用的回调或清理函数；未找到或不可用时可能为空。
+   */
   addGlobalAttributes() {
     return [
       {
@@ -82,12 +100,25 @@ export const BlockAttributes = Extension.create({
   //   return {};
   // },
 
+  /**
+   * 注册底层 ProseMirror 插件以处理事务、事件或视图装饰。
+   *
+   * @returns 整理后的结果列表。
+   */
   addProseMirrorPlugins() {
     return [
       // 自动为新节点添加 blockId
       new ProseMirrorPlugin({
         key: AUTO_BLOCK_ID_KEY,
 
+        /**
+         * 在原事务处理后补充必要的节点属性或结构调整。
+         *
+         * @param transactions 已经执行的编辑器事务集合。
+         * @param _oldState 回调签名保留的参数，当前实现不使用。
+         * @param newState 本次事务处理后的编辑器状态。
+         * @returns import("E:/LiveDoc/livedoc/node_modules/prosemirror-state/dist/index").Transaction 类型的处理结果。
+         */
         appendTransaction(transactions, _oldState, newState) {
           // 防止无限循环：跳过自己创建的 transaction
           if (transactions.some((tr) => tr.getMeta('autoBlockId'))) {
@@ -129,6 +160,11 @@ export const BlockAttributes = Extension.create({
     ];
   },
 
+  /**
+   * 注册当前扩展向编辑器暴露的命令。
+   *
+   * @returns 供后续操作使用的回调或清理函数。
+   */
   addCommands() {
     return {
       scrollToBlock:

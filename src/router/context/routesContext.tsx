@@ -1,3 +1,6 @@
+/**
+ * @file 路由上下文。向子组件提供动态路由数据。
+ */
 // src/router/context/routesContext.tsx
 import { useEffect, useState } from 'react';
 import { transformRoutes, generateMenus } from '@/utils/routeUtils';
@@ -6,6 +9,12 @@ import type { MenuItem } from '@/types/routes';
 import { useSelector } from 'react-redux';
 import type { RouteState } from '@/store/modules/routeSlice';
 
+/**
+ * 呈现路由上下文，并连接对应状态与用户操作。
+ *
+ * @param props 组件接收的属性。
+ * @returns 供页面渲染的组件内容。
+ */
 export const RoutesProvider: React.FC<{ children: React.ReactNode }> = ({
   children,
 }) => {
@@ -16,6 +25,9 @@ export const RoutesProvider: React.FC<{ children: React.ReactNode }> = ({
   const routes = useSelector((state: RouteState) => state.route.routes);
 
   // 数据处理与转换
+  /**
+   * 数据处理与转换
+   */
   const fetchRoutes = async () => {
     try {
       setLoading(true);

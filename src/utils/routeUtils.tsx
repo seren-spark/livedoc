@@ -1,3 +1,6 @@
+/**
+ * @file 路由转换工具。将菜单或路由数据整理为页面渲染需要的结构。
+ */
 import { lazy } from 'react';
 import type { BackendRoute, FrontendRoute, MenuItem } from '@/types/routes';
 import { Link } from 'react-router-dom';
@@ -38,6 +41,13 @@ const iconMap = {
 };
 
 // 动态加载组件
+/**
+ * 动态加载组件
+ *
+ * @param componentName 需要懒加载的页面组件名称。
+ * @param fullPath 当前页面或资源的完整路径（可选）。
+ * @returns 当前步骤的处理结果。
+ */
 const lazyLoad = (componentName: string, fullPath?: string) => {
   if (fullPath == undefined || fullPath == componentName) {
     return lazy(() => import(`@/pages/admin/${componentName}/index.tsx`));
@@ -51,6 +61,14 @@ const lazyLoad = (componentName: string, fullPath?: string) => {
 };
 
 // 将后端路由转换为React Router需要的结构
+/**
+ * 将后端路由转换为React Router需要的结构
+ *
+ * @param routes 需要转换或展示的路由配置。
+ * @param permissions 当前身份持有的权限列表。
+ * @param fullPath 当前页面或资源的完整路径（可选）。
+ * @returns 整理后的结果列表。
+ */
 export const transformRoutes = (
   routes: BackendRoute[],
   permissions: string[] = [],
@@ -92,6 +110,14 @@ export const transformRoutes = (
 };
 
 // 生成菜单结构
+/**
+ * 生成菜单结构
+ *
+ * @param routes 需要转换或展示的路由配置。
+ * @param permissions 当前身份持有的权限列表。
+ * @param parentPath 父节点或父路由的完整路径（可选）。
+ * @returns 整理后的结果列表。
+ */
 export const generateMenus = (
   routes: BackendRoute[],
   permissions: string[] = [],

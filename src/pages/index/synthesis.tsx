@@ -1,3 +1,6 @@
+/**
+ * @file 文章推荐列表。分页加载公开文章并展示文章卡片。
+ */
 import {
   DatabaseOutlined,
   LikeOutlined,
@@ -11,6 +14,11 @@ import { useEffect, useState } from 'react';
 import { ragBaseURL, listPublicArticles } from '@/api/rag';
 import type { PublicArticle } from '@/api/articles';
 
+/**
+ * 呈现文章推荐列表，并连接对应状态与用户操作。
+ *
+ * @returns 供页面渲染的组件内容。
+ */
 export default function ArticleFeed() {
   const navigate = useNavigate();
   const [params, setParams] = useSearchParams();

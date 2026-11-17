@@ -1,3 +1,6 @@
+/**
+ * @file 用户信息浮层。组织用户信息浮层的界面与交互。
+ */
 import { Popover, Avatar, Button, Typography, theme } from 'antd';
 import './index.scss';
 
@@ -13,6 +16,12 @@ interface UserPopoverProps {
   focusFn?: () => void;
   privateFn?: () => void;
 }
+/**
+ * 呈现用户信息浮层，并连接对应状态与用户操作。
+ *
+ * @param props 组件接收的属性。
+ * @returns 供页面渲染的组件内容。
+ */
 export default function UserPopover(props: UserPopoverProps) {
   const {
     username = '小舟',

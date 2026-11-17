@@ -1,3 +1,6 @@
+/**
+ * @file 首页信息流布局。组合导航与文章列表，并把根路径引导至综合信息流。
+ */
 // index.tsx
 import FrontLayout from '@/layouts/frontLayout';
 import { Layout, theme, type MenuProps } from 'antd';
@@ -24,11 +27,21 @@ const menu: MenuItem[] = [
   },
 ];
 
+/**
+ * 呈现首页信息流布局，并连接对应状态与用户操作。
+ *
+ * @returns 供页面渲染的组件内容。
+ */
 function Sider() {
   return <MySider menu={menu} defaultSelectedKeys={['/synthesis']} />;
 }
 // 首页
 
+/**
+ * 呈现首页信息流布局，并连接对应状态与用户操作。
+ *
+ * @returns 供页面渲染的组件内容。
+ */
 export default function Index() {
   const location = useLocation();
 

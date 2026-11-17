@@ -1,3 +1,6 @@
+/**
+ * @file 接口响应类型。声明前端接口响应与数据包装结构。
+ */
 import type { AxiosRequestConfig } from 'axios';
 
 // types/api.ts

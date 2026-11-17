@@ -1,8 +1,13 @@
+/**
+ * @file TipTap 状态订阅 Hook。按传入实例或编辑器上下文获取响应式编辑器状态。
+ */
 import * as React from 'react';
 import type { Editor } from '@tiptap/react';
 import { useCurrentEditor, useEditorState } from '@tiptap/react';
 
 /**
+ * 优先使用传入实例，否则读取当前 TipTap 编辑器上下文。
+ *
  * Hook that provides access to a Tiptap editor instance.
  *
  * Accepts an optional editor instance directly, or falls back to retrieving
@@ -26,6 +31,12 @@ export function useTiptapEditor(providedEditor?: Editor | null): {
 
   const editorState = useEditorState({
     editor: mainEditor,
+    /**
+     * 从编辑器上下文中选择当前 Hook 需要的状态。
+     *
+     * @param context 当前操作的上下文。
+     * @returns 供后续操作使用的回调或清理函数。
+     */
     selector(context) {
       if (!context.editor) {
         return {

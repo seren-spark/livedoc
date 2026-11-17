@@ -1,3 +1,6 @@
+/**
+ * @file 前端根组件。挂载鉴权上下文、全局登录弹窗与路由页面。
+ */
 import { Suspense } from 'react';
 import './App.scss';
 
@@ -42,6 +45,12 @@ import LoginRegisterModal from '@/components/LoginForm';
 //     </div>
 //   );
 // }
+/**
+ * 读取登录上下文，统一展示登录弹窗与当前路由页面。
+ *
+ * @param props 组件接收的属性。
+ * @returns 供页面渲染的组件内容。
+ */
 function AppContent({ routes }: { routes: ReturnType<typeof useAppRouter> }) {
   const { isLoginModalVisible, hideLoginModal, login } = useAuth();
 
@@ -56,6 +65,11 @@ function AppContent({ routes }: { routes: ReturnType<typeof useAppRouter> }) {
     </>
   );
 }
+/**
+ * 装配应用级 Provider 和根界面，启动页面渲染。
+ *
+ * @returns 供页面渲染的组件内容。
+ */
 function App() {
   const routes = useAppRouter();
 

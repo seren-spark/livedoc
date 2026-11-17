@@ -1,3 +1,6 @@
+/**
+ * @file 文档格式工具栏。组织文档格式工具栏的界面与交互。
+ */
 // @ts-nocheck
 import editor from '@/pages/editor/config/editorConfig';
 import {
@@ -52,6 +55,12 @@ type ToolbarButton =
       }[];
     };
 
+/**
+ * 呈现文档格式工具栏，并连接对应状态与用户操作。
+ *
+ * @param props 组件接收的属性。
+ * @returns 供页面渲染的组件内容。
+ */
 export default function Toolbar({ handleInsertLink }) {
   const [isLinkBubbleVisible, setIsLinkBubbleVisible] = useState(false);
   const [showLinkBubble, setShowLinkBubble] = useState(false);

@@ -1,3 +1,6 @@
+/**
+ * @file 分隔线节点扩展。定义分隔线的 HTML 解析、渲染与编辑行为。
+ */
 import { Node, mergeAttributes } from '@tiptap/core';
 import { Plugin, PluginKey } from '@tiptap/pm/state';
 
@@ -8,12 +11,22 @@ const LineNode = Node.create({
   group: 'block',
   defining: true,
 
+  /**
+   * 声明当前 TipTap 扩展的默认选项。
+   *
+   * @returns 整理后的状态与操作结果对象。
+   */
   addOptions() {
     return {
       HTMLAttributes: {},
     };
   },
 
+  /**
+   * 声明从 HTML 识别当前 TipTap 节点的规则。
+   *
+   * @returns 整理后的结果列表。
+   */
   parseHTML() {
     return [
       {
@@ -22,6 +35,12 @@ const LineNode = Node.create({
     ];
   },
 
+  /**
+   * 将当前节点及其属性转换为 HTML 结构。
+   *
+   * @param options 控制本次行为的可选配置。
+   * @returns 当前步骤的处理结果。
+   */
   renderHTML({ HTMLAttributes }) {
     return [
       'pre',
@@ -40,6 +59,11 @@ const LineNode = Node.create({
     ];
   },
 
+  /**
+   * 注册底层 ProseMirror 插件以处理事务、事件或视图装饰。
+   *
+   * @returns 整理后的结果列表。
+   */
   addProseMirrorPlugins() {
     return [
       new Plugin({

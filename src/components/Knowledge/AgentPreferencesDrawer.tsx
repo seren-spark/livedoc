@@ -1,3 +1,6 @@
+/**
+ * @file 写作偏好抽屉。加载个人偏好并提供确认、编辑与删除操作。
+ */
 import { useEffect, useRef, useState } from 'react';
 import { Alert, Button, Checkbox, Drawer, Input, Space } from 'antd';
 import {
@@ -8,11 +11,23 @@ import {
   type WritingPreferencesState,
 } from '@/api/agent-preferences';
 
+/**
+ * 从请求异常中提取适合页面展示的错误消息。
+ *
+ * @param error 本次操作捕获的异常。
+ * @returns 本次操作整理后的结果。
+ */
 const errorMessage = (error: any) => {
   const value = error.response?.data?.message ?? error.message;
   return Array.isArray(value) ? value.join('，') : value;
 };
 
+/**
+ * 呈现写作偏好抽屉，并连接对应状态与用户操作。
+ *
+ * @param props 组件接收的属性。
+ * @returns 供页面渲染的组件内容。
+ */
 export default function AgentPreferencesDrawer({
   open,
   onClose,
@@ -51,6 +66,11 @@ export default function AgentPreferencesDrawer({
       readSequence.current++;
     };
   }, []);
+  /**
+   * 读取最新偏好状态，用请求序号忽略已过期的响应。
+   *
+   * @param preserveError 加载成功时是否保留上一次的错误提示。
+   */
   const load = async (preserveError = false) => {
     const token = generation.current;
     const sequence = ++readSequence.current;
@@ -102,6 +122,12 @@ export default function AgentPreferencesDrawer({
     else void load();
   }, [refreshKey, open]);
 
+  /**
+   * 按当前偏好修订号提交修改，失败重试时复用同一请求标识。
+   *
+   * @param action 本次请求执行的操作类型。
+   * @param fields 本次需要更新的字段集合。
+   */
   const mutate = async (
     action: PreferenceMutation['action'],
     fields: Pick<PreferenceMutation, 'id' | 'text' | 'replace_ids'> = {},
@@ -162,6 +188,12 @@ export default function AgentPreferencesDrawer({
   const candidates =
     state?.items.filter((item) => item.status === 'pending') ?? [];
   const disabled = pending || loading || !state;
+  /**
+   * 渲染该偏好对应的用户原始输入，便于核对来源。
+   *
+   * @param item 本次正在处理的条目。
+   * @returns 供页面渲染的组件内容。
+   */
   const source = (item: WritingPreference) => (
     <details className="agent-preference-source">
       <summary>

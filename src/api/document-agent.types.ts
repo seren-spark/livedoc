@@ -1,3 +1,6 @@
+/**
+ * @file 文档 Agent 前端协议。定义编辑器快照、候选编辑、引用与流式事件。
+ */
 export type AgentMode = 'ask' | 'plan' | 'agent';
 export type OutputTarget = 'current_document' | 'new_document';
 export type DocumentIdentity =

@@ -1,3 +1,6 @@
+/**
+ * @file 管理员列表。组织管理员列表的界面与交互。
+ */
 // 管理员管理
 
 import type React from 'react';
@@ -16,6 +19,11 @@ interface JobPosition {
   status: 'active' | 'inactive' | 'pending';
 }
 
+/**
+ * 呈现管理员列表，并连接对应状态与用户操作。
+ *
+ * @returns 供页面渲染的组件内容。
+ */
 function DBTable() {
   const [selectedRows, setSelectedRows] = useState<number[]>([]);
   const [currentPage, setCurrent] = useState(1);

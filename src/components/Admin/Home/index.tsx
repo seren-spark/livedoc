@@ -1,3 +1,6 @@
+/**
+ * @file 管理概览。组织管理概览的界面与交互。
+ */
 import type React from 'react';
 import { useEffect, useRef } from 'react';
 import {
@@ -28,6 +31,11 @@ const { TabPane } = Tabs;
 
 type DashboardProps = object;
 
+/**
+ * 呈现管理概览，并连接对应状态与用户操作。
+ *
+ * @returns 供页面渲染的组件内容。
+ */
 const Dashboard: React.FC<DashboardProps> = () => {
   const chartRef = useRef<HTMLDivElement>(null);
 
@@ -86,6 +94,9 @@ const Dashboard: React.FC<DashboardProps> = () => {
 
       chart.setOption(option);
 
+      /**
+       * 在窗口尺寸变化时重新计算展示区域。
+       */
       const handleResize = () => {
         chart.resize();
       };

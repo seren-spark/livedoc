@@ -1,3 +1,6 @@
+/**
+ * @file 对话消息列表。组织对话消息列表的界面与交互。
+ */
 import React from 'react';
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { Layout, Button } from 'antd';
@@ -25,6 +28,9 @@ interface DialogueProps {
 
 /**
  * 单条消息组件，避免整个列表反复渲染
+ *
+ * @param props 组件接收的属性。
+ * @returns 供页面渲染的组件内容。
  */
 const ChatMessage: React.FC<{
   message: Message;
@@ -93,6 +99,12 @@ const ChatMessage: React.FC<{
 
 ChatMessage.displayName = 'ChatMessage';
 
+/**
+ * 呈现对话消息列表，并连接对应状态与用户操作。
+ *
+ * @param props 组件接收的属性。
+ * @returns 供页面渲染的组件内容。
+ */
 const ChatConversationPage: React.FC<DialogueProps> = ({
   chatHistory: messages,
   msgLoading,
@@ -101,6 +113,11 @@ const ChatConversationPage: React.FC<DialogueProps> = ({
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const [visible, setVisible] = useState(false);
 
+  /**
+   * 把对话容器滚动到最新消息位置。
+   *
+   * @param smooth 是否使用平滑滚动。
+   */
   const scrollToBottom = useCallback((smooth = false) => {
     const container = messagesContainerRef.current;
     if (container) {
@@ -128,6 +145,9 @@ const ChatConversationPage: React.FC<DialogueProps> = ({
     const container = messagesContainerRef.current;
     if (!container) return;
 
+    /**
+     * 响应滚动事件，更新当前视图依赖的滚动状态。
+     */
     const handleScroll = () => {
       const { scrollTop, scrollHeight, clientHeight } = container;
       if (scrollHeight - scrollTop - clientHeight > 200) {

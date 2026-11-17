@@ -1,3 +1,6 @@
+/**
+ * @file 内联补全展示。在光标附近展示补全候选并响应接受或取消快捷键。
+ */
 import React, { useEffect, useState } from 'react';
 
 interface InlineSuggestionProps {
@@ -7,6 +10,12 @@ interface InlineSuggestionProps {
   editor: any;
 }
 
+/**
+ * 呈现内联补全展示，并连接对应状态与用户操作。
+ *
+ * @param props 组件接收的属性。
+ * @returns 供页面渲染的组件内容。
+ */
 const InlineSuggestion: React.FC<InlineSuggestionProps> = ({
   suggestion,
   onAccept,
@@ -28,6 +37,11 @@ const InlineSuggestion: React.FC<InlineSuggestionProps> = ({
     }
   }, [editor]);
 
+  /**
+   * 处理当前组件支持的快捷键，并按需阻止默认行为。
+   *
+   * @param event 需要处理的事件。
+   */
   const handleKeyDown = (event: KeyboardEvent) => {
     if (event.key === 'Tab') {
       event.preventDefault();

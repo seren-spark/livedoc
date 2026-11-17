@@ -1,3 +1,6 @@
+/**
+ * @file AI 对话侧栏。组织AI 对话侧栏的界面与交互。
+ */
 import { Layout, Menu, Button, Typography } from 'antd';
 import {
   PlusOutlined,
@@ -14,6 +17,11 @@ import './index.scss';
 
 const { Sider } = Layout;
 
+/**
+ * 呈现AI 对话侧栏，并连接对应状态与用户操作。
+ *
+ * @returns 供页面渲染的组件内容。
+ */
 function AiSider() {
   const [collapsed, setCollapsed] = useState(false);
 

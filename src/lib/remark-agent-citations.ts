@@ -1,11 +1,25 @@
+/**
+ * @file Agent 引用 Markdown 插件。将回答中的引用标记转换为可交互的语法节点。
+ */
 import type { Parent, PhrasingContent, Root } from 'mdast';
 import type { AgentCitation } from '@/api/document-agent.types';
 
 // Transform only prose nodes: code, existing links and escaped brackets stay literal.
+/**
+ * 把普通正文中的引用标记转换为引用节点，保持代码和已有链接的字面内容。
+ *
+ * @param options 控制本次行为的可选配置。
+ * @returns 供后续操作使用的回调或清理函数。
+ */
 export default function remarkAgentCitations({ citations }: { citations: AgentCitation[] }) {
   const byId = new Map(citations.map((citation, index) => [citation.id, index + 1]));
   return (tree: Root, file: { value: unknown }) => {
     const source = String(file.value);
+    /**
+     * 遍历 Markdown 文本，把有效引用标记转换为引用节点，跳过已有链接和图片。
+     *
+     * @param node 当前语法树或编辑器节点。
+     */
     const visit = (node: Parent) => {
       if (['link', 'linkReference', 'image', 'imageReference'].includes(node.type)) return;
       const children: typeof node.children = [];

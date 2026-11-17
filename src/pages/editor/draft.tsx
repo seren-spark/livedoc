@@ -1,3 +1,6 @@
+/**
+ * @file 主文档编辑页。组装 TipTap、文章和知识文档会话，以及 AI 工具和 Agent 面板。
+ */
 import { useRef, useState, useEffect, useCallback, Suspense } from 'react';
 import {
   Layout,
@@ -46,6 +49,11 @@ const AISuggestionPreview = React.lazy(
 
 const MemorizedToC = React.memo(Toc);
 
+/**
+ * 呈现主文档编辑页，并连接对应状态与用户操作。
+ *
+ * @returns 供页面渲染的组件内容。
+ */
 const TiptapEditor = () => {
   const { requireAuth } = useAuth();
   const items = useSelector((state: any) => state.toc.tocItems);
@@ -112,6 +120,9 @@ const TiptapEditor = () => {
   const [isLinkBubbleVisible, setIsLinkBubbleVisible] = useState(false);
   const [showPerformanceMonitor, setShowPerformanceMonitor] = useState(false);
   const editorContainerRef = useRef<HTMLDivElement>(null);
+  /**
+   * 打开链接输入界面，准备为当前选区设置链接。
+   */
   const handleInsertLink = () => {
     if (!editor) return;
 
@@ -128,6 +139,12 @@ const TiptapEditor = () => {
     setIsLinkBubbleVisible(true);
   };
 
+  /**
+   * 校验链接输入后更新编辑器中的链接标记。
+   *
+   * @param text 待处理的文本。
+   * @param url 需要校验或访问的地址。
+   */
   const handleLinkSubmit = (text: string, url: string) => {
     if (!editor) return;
 
@@ -148,6 +165,11 @@ const TiptapEditor = () => {
     setIsLinkBubbleVisible(false);
   };
   // 🔥 加载测试文档
+  /**
+   * 🔥 加载测试文档
+   *
+   * @param size 本次批量处理或页面读取的数量。
+   */
   const loadTestDocument = useCallback(
     (size: 'small' | 'medium' | 'large') => {
       if (!editor) return;
@@ -187,6 +209,11 @@ const TiptapEditor = () => {
 
   // 🔥 快捷键监听（Ctrl+Shift+P 切换性能监控）
   useEffect(() => {
+    /**
+     * 处理当前组件支持的快捷键，并按需阻止默认行为。
+     *
+     * @param e 当前界面事件或捕获的异常。
+     */
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.ctrlKey && e.shiftKey && e.key === 'P') {
         e.preventDefault();
@@ -202,6 +229,11 @@ const TiptapEditor = () => {
   }, [showPerformanceMonitor]);
 
   useEffect(() => {
+    /**
+     * 响应知识问答快捷键，打开对应侧栏。
+     *
+     * @param event 需要处理的事件。
+     */
     const handleRagShortcut = (event: KeyboardEvent) => {
       if (
         (event.ctrlKey || event.metaKey) &&

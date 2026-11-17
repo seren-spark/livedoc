@@ -1,3 +1,6 @@
+/**
+ * @file 虚拟节点视图。管理块节点 DOM 与高度测量，配合虚拟渲染器显示内容。
+ */
 // @ts-nocheck
 /**
  * 虚拟化 NodeView 基类
@@ -41,6 +44,15 @@ export class VirtualNodeView implements NodeView {
   private cachedHeight: number;
   private options: Required<VirtualNodeViewOptions>;
 
+  /**
+   * 初始化实例依赖与本地状态。
+   *
+   * @param node 当前语法树或编辑器节点。
+   * @param view 当前 ProseMirror 编辑器视图。
+   * @param getPos 读取节点当前文档位置的回调。
+   * @param editor 当前 TipTap 编辑器实例。
+   * @param options 控制本次行为的可选配置。
+   */
   constructor(
     node: ProseMirrorNode,
     view: EditorView,
@@ -144,6 +156,8 @@ export class VirtualNodeView implements NodeView {
 
   /**
    * 获取节点对应的 HTML 标签名
+   *
+   * @returns 整理后的文本或标识。
    */
   private getTagName(): string {
     const typeMap: Record<string, string> = {
@@ -269,6 +283,8 @@ export class VirtualNodeView implements NodeView {
 
   /**
    * 判断节点是否在编辑状态
+   *
+   * @returns 条件是否满足的判断结果。
    */
   private isEditing(): boolean {
     const pos = this.getPos();
@@ -292,6 +308,8 @@ export class VirtualNodeView implements NodeView {
 
   /**
    * 查找滚动容器
+   *
+   * @returns 供页面渲染的组件内容。
    */
   private findScrollContainer(): HTMLElement | null {
     let parent = this.dom.parentElement;
@@ -314,6 +332,9 @@ export class VirtualNodeView implements NodeView {
 
   /**
    * 节点更新时调用
+   *
+   * @param node 当前语法树或编辑器节点。
+   * @returns 条件是否满足的判断结果。
    */
   update(node: ProseMirrorNode): boolean {
     // 只接受相同类型的节点更新

@@ -1,3 +1,6 @@
+/**
+ * @file UnoCSS 配置：声明原子样式预设、图标、主题颜色和转换器。
+ */
 // uno.config.ts
 import {
   defineConfig,

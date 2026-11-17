@@ -1,3 +1,6 @@
+/**
+ * @file 分页文档编辑页。连接分页编辑器、目录索引和编辑工具栏。
+ */
 import { useRef, useState, useEffect, useCallback, Suspense } from 'react';
 import {
   Layout,
@@ -46,6 +49,11 @@ const AISuggestionPreview = React.lazy(
 
 const MemorizedToC = React.memo(Toc);
 
+/**
+ * 呈现分页文档编辑页，并连接对应状态与用户操作。
+ *
+ * @returns 供页面渲染的组件内容。
+ */
 const TiptapEditor = () => {
   const items = useSelector((state: any) => state.toc.tocItems);
   const dispatch = useDispatch();
@@ -61,6 +69,9 @@ const TiptapEditor = () => {
   const isPagedModeRef = useRef(false); // 使用 ref 跟踪分页模式状态，避免闭包问题
   const normalTocCleanupRef = useRef<(() => void) | null>(null); // 存储普通模式TOC监听器的清理函数
 
+  /**
+   * 打开链接输入界面，准备为当前选区设置链接。
+   */
   const handleInsertLink = () => {
     if (!editor) return;
 
@@ -77,6 +88,12 @@ const TiptapEditor = () => {
     setIsLinkBubbleVisible(true);
   };
 
+  /**
+   * 校验链接输入后更新编辑器中的链接标记。
+   *
+   * @param text 待处理的文本。
+   * @param url 需要校验或访问的地址。
+   */
   const handleLinkSubmit = (text: string, url: string) => {
     if (!editor) return;
 
@@ -97,6 +114,9 @@ const TiptapEditor = () => {
     setIsLinkBubbleVisible(false);
   };
   // 🔥 转换为分页文档
+  /**
+   * 🔥 转换为分页文档
+   */
   const handleConvertToPagedDoc = useCallback(async () => {
     if (!editor) {
       message.warning('编辑器未初始化');
@@ -154,6 +174,9 @@ const TiptapEditor = () => {
   }, [editor, pagedDocId]);
 
   // 🔥 启用分页模式
+  /**
+   * 🔥 启用分页模式
+   */
   const handleEnablePagedMode = useCallback(async () => {
     if (!editor) return;
 
@@ -192,6 +215,9 @@ const TiptapEditor = () => {
   }, [editor, pagedDocId]);
 
   // 🔥 禁用分页模式
+  /**
+   * 🔥 禁用分页模式
+   */
   const handleDisablePagedMode = useCallback(async () => {
     if (!pagedManagerRef.current) return;
 
@@ -222,6 +248,11 @@ const TiptapEditor = () => {
   }, [editor, pagedDocId]);
 
   // 🔥 加载测试文档
+  /**
+   * 🔥 加载测试文档
+   *
+   * @param size 本次批量处理或页面读取的数量。
+   */
   const loadTestDocument = useCallback(
     (size: 'small' | 'medium' | 'large') => {
       if (!editor) return;
@@ -272,6 +303,11 @@ const TiptapEditor = () => {
 
   // 🔥 快捷键监听（Ctrl+Shift+P 切换性能监控）
   useEffect(() => {
+    /**
+     * 处理当前组件支持的快捷键，并按需阻止默认行为。
+     *
+     * @param e 当前界面事件或捕获的异常。
+     */
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.ctrlKey && e.shiftKey && e.key === 'P') {
         e.preventDefault();
@@ -291,6 +327,9 @@ const TiptapEditor = () => {
     if (!editor || !isPagedMode || !pagedManagerRef.current) return;
 
     console.log('[TOC] 初始化分页模式目录');
+    /**
+     * 读取分页文档的标题索引，更新目录展示。
+     */
     const loadPagedToc = async () => {
       const tocItems = [];
       const totalPages = pagedManagerRef.current!.totalPages;
@@ -333,6 +372,9 @@ const TiptapEditor = () => {
 
     console.log('[TOC] 初始化普通模式目录');
 
+    /**
+     * 根据当前编辑内容刷新标题目录。
+     */
     const updateToc = () => {
       // 使用 ref 进行实时检查，避免闭包问题
       if (isPagedModeRef.current || pagedManagerRef.current) {
@@ -368,6 +410,9 @@ const TiptapEditor = () => {
     editor.on('update', updateToc);
 
     // 保存清理函数到 ref，以便分页模式启动时立即清除
+    /**
+     * 清理已结束或过期操作留下的资源。
+     */
     const cleanup = () => {
       console.log('[TOC] 清除普通模式监听器');
       editor.off('update', updateToc);

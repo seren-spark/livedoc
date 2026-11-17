@@ -1,3 +1,6 @@
+/**
+ * @file 文章评论线程。展示评论及回复，处理回复提交、加载和删除。
+ */
 import { useEffect, useRef, useState } from 'react';
 import {
   Alert,
@@ -19,6 +22,12 @@ import {
 } from '@/api/articles';
 import defaultAvatar from '@/assets/default-avatar.svg';
 
+/**
+ * 呈现文章评论线程，并连接对应状态与用户操作。
+ *
+ * @param props 组件接收的属性。
+ * @returns 供页面渲染的组件内容。
+ */
 export default function ArticleCommentThread({
   articleId,
   comment,
@@ -71,6 +80,11 @@ export default function ArticleCommentThread({
     page,
     refresh,
   ]);
+  /**
+   * 先要求登录，再互斥执行评论写入；失败时保留用户输入。
+   *
+   * @param work 需要在受控上下文中执行的异步操作。
+   */
   const write = (work: () => Promise<void>) =>
     requireAuth(() => {
       if (inFlight.current) return;
@@ -90,6 +104,9 @@ export default function ArticleCommentThread({
           setBusy(false);
         });
     });
+  /**
+   * 提交当前回复文本，成功后刷新回复列表与评论计数。
+   */
   const submit = () => {
     if (!text.trim()) {
       message.warning('请先写下回复');
@@ -115,6 +132,12 @@ export default function ArticleCommentThread({
       message.success('回复已发布');
     });
   };
+  /**
+   * 确认后移除文章评论线程中的选中项，并刷新展示。
+   *
+   * @param item 本次正在处理的条目。
+   * @returns 供后续操作使用的回调或清理函数。
+   */
   const remove = (item: ArticleComment) =>
     Modal.confirm({
       title: item.parent_comment_id ? '删除这条回复？' : '删除这条评论？',
@@ -133,6 +156,13 @@ export default function ArticleCommentThread({
           await onChanged();
         }),
     });
+  /**
+   * 渲染一条评论或回复及其可用操作。
+   *
+   * @param item 本次正在处理的条目。
+   * @param root 当前语法树或文档的根节点。
+   * @returns 供页面渲染的组件内容。
+   */
   const row = (item: ArticleComment, root: boolean) => (
     <div className="comment-row">
       <Avatar

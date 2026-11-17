@@ -1,3 +1,6 @@
+/**
+ * @file AI 对话页面。组织AI 对话页面的界面与交互。
+ */
 import type React from 'react';
 import { Layout } from 'antd';
 import AiSider from './AiSider';
@@ -8,6 +11,11 @@ import AiContent from './AiContent';
 const { Content } = Layout;
 
 // 添加获取时间段的函数
+/**
+ * 添加获取时间段的函数
+ *
+ * @returns "上午" | "下午" | "晚上" 类型的处理结果。
+ */
 const getTimePeriod = () => {
   const hour = new Date().getHours();
   if (hour >= 6 && hour < 12) {
@@ -19,6 +27,11 @@ const getTimePeriod = () => {
   }
 };
 
+/**
+ * 呈现AI 对话页面，并连接对应状态与用户操作。
+ *
+ * @returns 供页面渲染的组件内容。
+ */
 const ClaudeLikeInterface: React.FC = () => {
   // 获取当前时间段
   const timePeriod = getTimePeriod();

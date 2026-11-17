@@ -1,3 +1,6 @@
+/**
+ * @file 知识问答会话 Hook。维护问答轮次、SSE 生成、取消、来源展开和回答采纳。
+ */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Editor } from '@tiptap/react';
 import { message } from 'antd';
@@ -50,10 +53,22 @@ interface UseRagChatSessionParams {
   onRequireLogin: (callback: () => void) => void;
 }
 
+/**
+ * 生成本地消息或会话使用的唯一标识。
+ *
+ * @param prefix 需要匹配或补入的前缀。
+ * @returns 整理后的文本或标识。
+ */
 function createId(prefix: string) {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
+/**
+ * 读取当前编辑器内容，构造问答需要的文档上下文。
+ *
+ * @param editor 当前 TipTap 编辑器实例。
+ * @returns 整理后的状态与操作结果对象。
+ */
 function getEditorContext(editor: Editor | null) {
   if (!editor || editor.isDestroyed) {
     return { content: '', selectedText: '', before: '', after: '' };
@@ -77,6 +92,12 @@ function getEditorContext(editor: Editor | null) {
   };
 }
 
+/**
+ * 管理问答轮次、流式请求、取消与回答采纳操作。
+ *
+ * @param options 控制本次行为的可选配置。
+ * @returns 供后续操作使用的回调或清理函数。
+ */
 export function useRagChatSession({
   editor,
   title,
@@ -101,6 +122,12 @@ export function useRagChatSession({
 
   useEffect(() => () => abortRef.current?.abort(), []);
 
+  /**
+   * 只更新指定问答轮次，保留其他消息状态。
+   *
+   * @param turnId turn 对应的唯一标识。
+   * @param update 状态更新时执行的回调。
+   */
   const updateTurn = useCallback(
     (turnId: string, update: Partial<ConversationTurn>) => {
       setTurns((items) =>
@@ -112,6 +139,11 @@ export function useRagChatSession({
     [],
   );
 
+  /**
+   * 建立问答轮次并发起带当前上下文的生成请求。
+   *
+   * @param question 需要回答或继续检索的问题。
+   */
   const submitQuestion = useCallback(
     async (question: string) => {
       if (isGenerating) return;
@@ -230,6 +262,11 @@ export function useRagChatSession({
     ],
   );
 
+  /**
+   * 将指定问题交给统一的问答提交流程。
+   *
+   * @param question 需要回答或继续检索的问题。
+   */
   const askQuestion = useCallback(
     (question: string) => {
       if (!isLoggedIn || !sessionStorage.getItem('token')) {
@@ -241,20 +278,35 @@ export function useRagChatSession({
     [isLoggedIn, onRequireLogin, submitQuestion],
   );
 
+  /**
+   * 提交输入框中的当前问题。
+   */
   const sendCurrentQuery = useCallback(() => {
     const normalized = query.trim();
     if (!normalized) return;
     askQuestion(normalized);
   }, [askQuestion, query]);
 
+  /**
+   * 取消当前生成请求，并结束界面的生成状态。
+   */
   const stopGenerating = useCallback(() => abortRef.current?.abort(), []);
 
+  /**
+   * 停止当前生成并清空消息，开始新的问答会话。
+   */
   const startNewConversation = useCallback(() => {
     abortRef.current?.abort();
     setTurns([]);
     setConversationId(createId('conversation'));
   }, []);
 
+  /**
+   * 切换指定回答的引用来源展开状态。
+   *
+   * @param turnId turn 对应的唯一标识。
+   * @param expanded 是否展开当前内容或来源列表。
+   */
   const toggleSources = useCallback(
     (turnId: string, expanded: boolean) => {
       updateTurn(turnId, { sourcesExpanded: !expanded });
@@ -262,6 +314,11 @@ export function useRagChatSession({
     [updateTurn],
   );
 
+  /**
+   * 打开引用来源，并传递原文定位信息。
+   *
+   * @param citation 包含来源、原文位置与内容的检索引用。
+   */
   const openOriginal = useCallback(
     (citation: Citation) => {
       if (citation.url) {
@@ -306,6 +363,11 @@ export function useRagChatSession({
     [editor, navigate, onClose],
   );
 
+  /**
+   * 将当前回答插入编辑器，并记录用户采纳。
+   *
+   * @param turn 执行模型调用的回调或当前问答轮次。
+   */
   const insertAnswer = useCallback(
     (turn: ConversationTurn) => {
       if (!editor || !turn.canInsert || !turn.answer.trim()) return;
@@ -347,6 +409,12 @@ export function useRagChatSession({
     [editor, updateTurn],
   );
 
+  /**
+   * 保存本次任务的用户反馈，并更新相关效果记录。
+   *
+   * @param turn 执行模型调用的回调或当前问答轮次。
+   * @param feedback 用户对当前回答或候选的评价。
+   */
   const recordFeedback = useCallback(
     (turn: ConversationTurn, feedback: 'helpful' | 'unhelpful') => {
       if (!turn.trace?.trace_id || turn.feedback === feedback) return;
@@ -359,6 +427,11 @@ export function useRagChatSession({
     [updateTurn],
   );
 
+  /**
+   * 把问答状态整理为渲染组件需要的消息列表。
+   *
+   * @returns 引用证据列表。
+   */
   const renderedTurns = useMemo(
     () =>
       turns.map((turn) => ({

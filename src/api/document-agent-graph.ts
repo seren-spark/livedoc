@@ -1,3 +1,6 @@
+/**
+ * @file 图任务 API。创建和控制持久化任务，通过事件游标订阅执行进度。
+ */
 import { ragBaseURL, ragClient } from './rag';
 import { readSseStream } from './sse';
 import { restoreAgentRun, type AgentRequest } from './document-agent';
@@ -50,9 +53,21 @@ export interface GraphResume {
   plan?: ExecutionPlan;
   text?: string;
 }
+/**
+ * 读取持久化 Agent 任务的当前状态与交付结果。
+ *
+ * @param id 目标记录的唯一标识。
+ * @returns 持久化图任务记录。
+ */
 export async function getGraphRun(id: string): Promise<GraphRun> {
   return (await ragClient.get(`/ai/agent/runs/${id}`)).data;
 }
+/**
+ * 读取当前文档或用户关联的图任务列表。
+ *
+ * @param documentKey documentKey 参数（string）。
+ * @returns 持久化图任务记录列表。
+ */
 export async function listGraphRuns(documentKey: string): Promise<GraphRun[]> {
   return (
     await ragClient.get('/ai/agent/runs', {
@@ -60,6 +75,14 @@ export async function listGraphRuns(documentKey: string): Promise<GraphRun[]> {
     })
   ).data;
 }
+/**
+ * 发送暂停、继续或停止指令，并携带任务版本信息。
+ *
+ * @param id 目标记录的唯一标识。
+ * @param kind 当前结果或来源的分类。
+ * @param input 本次操作的输入数据（可选）。
+ * @returns 持久化图任务记录。
+ */
 export async function controlGraphRun(
   id: string,
   kind: 'pause' | 'resume' | 'stop',
@@ -80,6 +103,14 @@ export async function controlGraphRun(
   ).data;
 }
 
+/**
+ * 按事件游标读取新增任务事件。
+ *
+ * @param response 上游服务或 HTTP 接口返回的响应。
+ * @param after 本次变更后的内容或状态。
+ * @param onEvent 接收到完整事件时调用的处理函数。
+ * @returns 计算得到的数值。
+ */
 export async function readGraphEvents(
   response: Response,
   after: number,
@@ -98,12 +129,21 @@ export async function readGraphEvents(
   return last;
 }
 
+/**
+ * 等待下一次轮询时机，并响应取消信号。
+ *
+ * @param ms 等待或超时时间，单位为毫秒。
+ * @param signal 取消信号，用于中止请求和后台处理。
+ */
 const wait = (ms: number, signal: AbortSignal) =>
   new Promise<void>((resolve, reject) => {
     if (signal.aborted) {
       reject(new DOMException('已断开进度订阅', 'AbortError'));
       return;
     }
+    /**
+     * 响应取消信号，中止当前等待或操作。
+     */
     const abort = () => {
       clearTimeout(timer);
       reject(new DOMException('已断开进度订阅', 'AbortError'));
@@ -115,7 +155,17 @@ const wait = (ms: number, signal: AbortSignal) =>
     signal.addEventListener('abort', abort, { once: true });
   });
 
-/** Disconnecting this subscription never sends a stop command to the background task. */
+/**
+ * 按事件游标持续读取任务进度；断开订阅仅停止监听，不停止后台任务。
+ *
+ *  Disconnecting this subscription never sends a stop command to the background task.
+ *
+ * @param id 目标记录的唯一标识。
+ * @param editorJson 当前编辑器文档的 JSON 内容。
+ * @param onEvent 接收到完整事件时调用的处理函数。
+ * @param signal 取消信号，用于中止请求和后台处理。
+ * @param initialSeq 开始订阅时已经消费的事件序号。
+ */
 export async function subscribeGraphRun(
   id: string,
   editorJson: Record<string, unknown>,
@@ -125,6 +175,12 @@ export async function subscribeGraphRun(
 ) {
   let last = initialSeq,
     retries = 0;
+  /**
+   * 补充当前运行标识和事件游标后通知界面订阅者。
+   *
+   * @param event 需要处理的事件。
+   * @param data 当前事件或操作携带的数据。
+   */
   const send = (event: string, data: Record<string, any>) =>
     onEvent({ event, data: { ...data, run_id: id, seq: last } });
   while (!signal.aborted) {
@@ -184,6 +240,13 @@ export async function subscribeGraphRun(
   }
 }
 
+/**
+ * 创建图任务并订阅执行事件，向调用方持续报告状态。
+ *
+ * @param input 本次操作的输入数据。
+ * @param onEvent 接收到完整事件时调用的处理函数。
+ * @param signal 取消信号，用于中止请求和后台处理。
+ */
 export async function streamGraphDocumentAgent(
   input: AgentRequest,
   onEvent: (event: AgentEvent) => void,

@@ -1,4 +1,7 @@
 /**
+ * @file 分页编辑管理。协调文档分页加载、编辑和页面状态。
+ */
+/**
  * PagedEditorManager - 分页编辑器核心管理器
  *
  * 负责：
@@ -36,6 +39,12 @@ export class PagedEditorManager {
   private scrollListener: (() => void) | null = null;
   private autoSaveTimer: number | null = null;
 
+  /**
+   * 初始化实例依赖与本地状态。
+   *
+   * @param editor 当前 TipTap 编辑器实例。
+   * @param docId 知识文档标识。
+   */
   constructor(editor: Editor, docId: string) {
     this.editor = editor;
     this.tocManager = new TOCIndexManager(docId);
@@ -55,6 +64,8 @@ export class PagedEditorManager {
 
   /**
    * 初始化编辑器（虚拟列表式分页）
+   *
+   * @param startPage 本次分页操作的起始页码。
    */
   async init(startPage = 1): Promise<void> {
     console.log('[PagedEditor] 🚀 虚拟列表式分页初始化，起始页:', startPage);
@@ -95,6 +106,9 @@ export class PagedEditorManager {
 
   /**
    * 查找页面在文档中的范围
+   *
+   * @param pageNum 请求的页码。
+   * @returns 整理后的状态与操作结果对象。
    */
   private findPageRange(pageNum: number): { from: number; to: number } | null {
     let from = 0;
@@ -119,6 +133,9 @@ export class PagedEditorManager {
 
   /**
    * 🔥 虚拟列表核心：获取需要真实渲染的页码（当前页 ± 缓冲区）
+   *
+   * @param centerPage 作为预加载中心的页码。
+   * @returns 计算得到的数值向量或评分列表。
    */
   private getVisiblePages(centerPage: number): number[] {
     const pages: number[] = [];
@@ -134,6 +151,8 @@ export class PagedEditorManager {
 
   /**
    * 🔥 虚拟列表核心：仅加载页面数据到内存（不渲染到编辑器）
+   *
+   * @param pageNums 需要加载或保存的页码集合。
    */
   private async loadPagesData(pageNums: number[]): Promise<void> {
     const promises = pageNums
@@ -206,6 +225,11 @@ export class PagedEditorManager {
   /**
    * 🔥 增量更新：替换单个页面的内容（占位符 ↔ 真实内容）
    * 使用 Transaction 遵循 ProseMirror 不可变设计
+   *
+   * @param pageNum 请求的页码。
+   * @param toPlaceholder toPlaceholder 参数（boolean）。
+   * @param force 是否强制执行当前操作。
+   * @returns 条件是否满足的判断结果。
    */
   private replacePageContent(
     pageNum: number,
@@ -345,6 +369,9 @@ export class PagedEditorManager {
 
   /**
    * 检查是否可以替换页面内容
+   *
+   * @param pageNum 请求的页码。
+   * @returns 条件是否满足的判断结果。
    */
   private canReplacePage(pageNum: number): boolean {
     // 当前页不替换（正在查看/编辑）
@@ -409,6 +436,9 @@ export class PagedEditorManager {
 
   /**
    * 查找下一个 pageBreak 的位置
+   *
+   * @param currentPos 当前节点或光标对应的位置。
+   * @returns 计算得到的数值。
    */
   private findNextPageBreakPosition(currentPos: number): number {
     let nextPos = -1;
@@ -430,6 +460,8 @@ export class PagedEditorManager {
   /**
    * 🔥 虚拟列表核心：滚动时更新可见页面（增量替换）
    * @param forceSwitching 是否强制切换（用于 switchToPage，绕过当前页保护）
+   *
+   * @param newVisiblePage 当前切换到的可见页码。
    */
   private async updateVisiblePages(
     newVisiblePage: number,
@@ -639,6 +671,10 @@ export class PagedEditorManager {
 
   /**
    * 🔥 虚拟列表核心：基于累计高度计算当前可见页码
+   *
+   * @param scrollTop 容器当前的垂直滚动位置。
+   * @param clientHeight 容器内部的可视高度。
+   * @returns 计算得到的数值。
    */
   private calculateVisiblePageByHeight(
     scrollTop: number,
@@ -708,6 +744,8 @@ export class PagedEditorManager {
 
   /**
    * 保存单个页面
+   *
+   * @param pageNum 请求的页码。
    */
   private async savePage(pageNum: number): Promise<void> {
     const range = this.findPageRange(pageNum);
@@ -755,6 +793,8 @@ export class PagedEditorManager {
 
   /**
    * 🔥 虚拟列表式跳转到指定标题
+   *
+   * @param itemId item 对应的唯一标识。
    */
   async scrollToHeading(itemId: string): Promise<void> {
     const item = this.tocManager.findItem(itemId);
@@ -805,6 +845,9 @@ export class PagedEditorManager {
 
   /**
    * 获取指定页面的目录
+   *
+   * @param pageNum 请求的页码。
+   * @returns 整理后的结果列表。
    */
   getTocForPage(pageNum: number) {
     return this.tocManager.getPageHeadings(pageNum);
@@ -812,6 +855,8 @@ export class PagedEditorManager {
 
   /**
    * 🔥 虚拟列表式切换到指定页面
+   *
+   * @param pageNum 请求的页码。
    */
   async switchToPage(pageNum: number): Promise<void> {
     if (pageNum < 1 || pageNum > this.state.totalPages) {
@@ -855,9 +900,15 @@ export class PagedEditorManager {
 
   /**
    * 监听页面切换事件
+   *
+   * @param callback 条件满足后执行的回调。
+   * @returns 供后续操作使用的回调或清理函数。
    */
   onPageChange(callback: () => void): () => void {
     // 创建一个简单的事件监听器
+    /**
+     * 创建一个简单的事件监听器
+     */
     const listener = () => {
       callback();
     };
@@ -879,6 +930,8 @@ export class PagedEditorManager {
 
   /**
    * 获取 currentPage 属性
+   *
+   * @returns 计算得到的数值。
    */
   get currentPage(): number {
     return this.state.currentPage;
@@ -886,6 +939,8 @@ export class PagedEditorManager {
 
   /**
    * 获取 totalPages 属性
+   *
+   * @returns 计算得到的数值。
    */
   get totalPages(): number {
     return this.state.totalPages;
@@ -893,6 +948,8 @@ export class PagedEditorManager {
 
   /**
    * 获取 isLoading 属性
+   *
+   * @returns 条件是否满足的判断结果。
    */
   get isLoading(): boolean {
     return this.state.isLoading;

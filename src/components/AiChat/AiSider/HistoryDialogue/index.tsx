@@ -1,3 +1,6 @@
+/**
+ * @file 历史对话列表。组织历史对话列表的界面与交互。
+ */
 import { Dropdown, Typography } from 'antd';
 import {
   DeleteOutlined,
@@ -16,6 +19,11 @@ interface ChatHistory {
   preview: string;
 }
 
+/**
+ * 响应菜单项点击，执行对应的界面操作。
+ *
+ * @param e 当前界面事件或捕获的异常。
+ */
 const handleMenuClick = (e: any) => {
   if (e.key == '1') {
     console.log('修改');
@@ -24,6 +32,11 @@ const handleMenuClick = (e: any) => {
   }
 };
 
+/**
+ * 呈现历史对话列表，并连接对应状态与用户操作。
+ *
+ * @returns 供页面渲染的组件内容。
+ */
 function HistoryDialogue() {
   const [chatHistory] = useState<ChatHistory[]>([
     {

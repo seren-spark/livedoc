@@ -1,3 +1,6 @@
+/**
+ * @file 文章编辑会话 Hook。管理草稿加载、本地恢复、保存、封面上传和发布。
+ */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/contexts/authContext';
@@ -33,6 +36,11 @@ import {
 import marked from '@/utils/marked';
 
 type SaveState = 'idle' | 'loading' | 'dirty' | 'saving' | 'saved' | 'error';
+/**
+ * 创建尚未保存文章的初始草稿数据。
+ *
+ * @returns ArticleContent 类型的处理结果。
+ */
 const emptyDraft = (): ArticleContent => ({
   title: '',
   content: '',
@@ -42,6 +50,11 @@ const emptyDraft = (): ArticleContent => ({
   cover_asset_id: null,
   asset_ids: [],
 });
+/**
+ * 读取当前登录身份，生成草稿恢复使用的账号标识。
+ *
+ * @returns 整理后的文本或标识。
+ */
 async function resolveAccount() {
   const key = await articleAccountKey();
   sessionStorage.setItem(
@@ -50,6 +63,11 @@ async function resolveAccount() {
   );
   return key;
 }
+/**
+ * 从本地已缓存的身份信息取得账号标识。
+ *
+ * @returns 整理后的文本或标识。
+ */
 function cachedAccount() {
   try {
     const cached = JSON.parse(
@@ -63,6 +81,13 @@ function cachedAccount() {
   }
 }
 
+/**
+ * 连接编辑器与文章草稿，管理恢复、保存、图片上传和发布。
+ *
+ * @param editor 当前 TipTap 编辑器实例。
+ * @param enabled 是否启用当前功能。
+ * @returns 供后续操作使用的回调或清理函数。
+ */
 export function useArticleSession(editor: Editor | null, enabled: boolean) {
   const [params, setParams] = useSearchParams();
   const urlId = params.get('articleId');
@@ -85,10 +110,20 @@ export function useArticleSession(editor: Editor | null, enabled: boolean) {
   const blocked = useRef(false);
   const recoveryVersion = useRef<number | null>(null);
 
+  /**
+   * 更新当前文章记录，并同步会话内部的版本引用。
+   *
+   * @param value 待校验或转换的值。
+   */
   const setRecord = (value: ArticleDraft) => {
     recordRef.current = value;
     if (mounted.current) setRecordState(value);
   };
+  /**
+   * 从编辑器与表单收集当前草稿，稳定图片资源引用后生成保存快照。
+   *
+   * @returns TipTap 文档 JSON列表；未找到或不可用时可能为空。
+   */
   const snapshot = useCallback(
     () => ({
       ...current.current,
@@ -104,6 +139,9 @@ export function useArticleSession(editor: Editor | null, enabled: boolean) {
     }),
     [editor],
   );
+  /**
+   * 从账号隔离的本地备份恢复尚未保存的草稿。
+   */
   const recover = useCallback(() => {
     try {
       localStorage.setItem(
@@ -125,6 +163,11 @@ export function useArticleSession(editor: Editor | null, enabled: boolean) {
       /* The unsaved page remains usable when local storage is full. */
     }
   }, [snapshot]);
+  /**
+   * 在用户编辑后更新草稿状态并标记未保存修改。
+   *
+   * @param patch 仅包含待修改字段的补丁对象。
+   */
   const change = useCallback(
     (patch: Partial<ArticleContent>) => {
       current.current = { ...current.current, ...patch };
@@ -300,10 +343,18 @@ export function useArticleSession(editor: Editor | null, enabled: boolean) {
 
   useEffect(() => {
     if (!enabled || !editor) return;
+    /**
+     * 响应用户编辑并标记草稿已修改，忽略初始化填充造成的更新。
+     */
     const update = () => {
       if (!hydrating.current) change({});
     };
     editor.on('update', update);
+    /**
+     * 在离开页面时处理尚未保存的草稿。
+     *
+     * @param event 需要处理的事件。
+     */
     const unload = (event: BeforeUnloadEvent) => {
       if (
         saveState === 'dirty' ||
@@ -322,6 +373,11 @@ export function useArticleSession(editor: Editor | null, enabled: boolean) {
     };
   }, [enabled, editor, change, recover, saveState]);
 
+  /**
+   * 在需要服务端身份时先创建草稿记录。
+   *
+   * @returns 文章草稿记录。
+   */
   const ensureRecord = useCallback(async () => {
     const signedInAccount = await resolveAccount();
     if (recordRef.current) {
@@ -346,6 +402,11 @@ export function useArticleSession(editor: Editor | null, enabled: boolean) {
     return created;
   }, [setParams, recover]);
 
+  /**
+   * 复用进行中的保存请求，处理图片上传与草稿版本更新。
+   *
+   * @returns 文章草稿记录。
+   */
   const save = useCallback(async (): Promise<ArticleDraft | null> => {
     if (inFlight.current) return inFlight.current;
     if (!editor || !enabled || hydrating.current || blocked.current)
@@ -367,6 +428,12 @@ export function useArticleSession(editor: Editor | null, enabled: boolean) {
         // Cache data URLs as well as blob URLs so autosave does not upload the same inline image repeatedly.
         const originalImages: string[] = [];
         const savedImages: string[] = [];
+        /**
+         * 收集编辑器与发布表单中的当前文章内容。
+         *
+         * @param node 当前语法树或编辑器节点。
+         * @param target 本次操作或定位的目标。
+         */
         const collect = (node: any, target: string[]) => {
           if (node.type === 'image') target.push(node.attrs.src);
           node.content?.forEach((child: any) => collect(child, target));
@@ -438,6 +505,9 @@ export function useArticleSession(editor: Editor | null, enabled: boolean) {
     return () => clearTimeout(timer);
   }, [draft, enabled, isLoggedIn, saveState, save]);
 
+  /**
+   * 请求保存当前草稿，并协调进行中的保存操作。
+   */
   const requestSave = useCallback(
     () =>
       requireAuth(() => {
@@ -445,6 +515,11 @@ export function useArticleSession(editor: Editor | null, enabled: boolean) {
       }),
     [requireAuth, save],
   );
+  /**
+   * 先保存当前草稿，再按校验结果提交正式发布请求。
+   *
+   * @param includeInKnowledge 发布后是否将文章纳入知识库检索（可选）。
+   */
   const publish = useCallback(
     (includeInKnowledge?: boolean) =>
       requireAuth(() => {
@@ -499,6 +574,12 @@ export function useArticleSession(editor: Editor | null, enabled: boolean) {
     [editor, requireAuth, save, navigate, recover],
   );
 
+  /**
+   * 上传封面图片并更新草稿中的封面资源标识。
+   *
+   * @param file 待上传或解析的文件。
+   * @returns 整理后的文本或标识。
+   */
   const uploadCover = useCallback(
     async (file: File) => {
       if (!isLoggedIn) {
@@ -514,7 +595,13 @@ export function useArticleSession(editor: Editor | null, enabled: boolean) {
     },
     [isLoggedIn, requireAuth, ensureRecord, change],
   );
+  /**
+   * 检查未保存内容后执行离开编辑页的操作。
+   */
   const leave = useCallback(() => {
+    /**
+     * 执行用户确认后的页面导航。
+     */
     const go = () => {
       recover();
       navigate('/creator/articles');

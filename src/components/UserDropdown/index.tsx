@@ -1,3 +1,6 @@
+/**
+ * @file 用户操作菜单。组织用户操作菜单的界面与交互。
+ */
 import { Avatar, Divider, Dropdown, theme, type MenuProps } from 'antd';
 import React from 'react';
 import UserCard from '../UserCard';
@@ -90,6 +93,12 @@ const userItems: MenuProps['items'] = [
 interface UserDropdownProps {
   chidren?: React.ReactNode;
 }
+/**
+ * 呈现用户操作菜单，并连接对应状态与用户操作。
+ *
+ * @param props 组件接收的属性。
+ * @returns 供页面渲染的组件内容。
+ */
 export default function UserDropdown(props: UserDropdownProps) {
   const menuStyle: React.CSSProperties = {
     boxShadow: 'none',

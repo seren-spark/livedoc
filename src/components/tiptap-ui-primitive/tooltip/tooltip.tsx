@@ -1,3 +1,6 @@
+/**
+ * @file 悬浮提示基础组件。封装悬浮提示的交互、样式和对外导出。
+ */
 'use client';
 
 import * as React from 'react';
@@ -57,6 +60,12 @@ interface TooltipContextValue extends UseFloatingReturn<ReferenceType> {
   ) => Record<string, unknown>;
 }
 
+/**
+ * 组合提示框的开关、定位与鼠标键盘交互状态。
+ *
+ * @param options 控制本次行为的可选配置。
+ * @returns 供后续操作使用的回调或清理函数；未找到或不可用时可能为空。
+ */
 function useTooltip({
   initialOpen = false,
   placement = 'top',
@@ -119,6 +128,11 @@ function useTooltip({
 
 const TooltipContext = React.createContext<TooltipContextValue | null>(null);
 
+/**
+ * 读取提示框上下文，检查组件是否放在对应 Provider 内。
+ *
+ * @returns TooltipContextValue 类型的处理结果。
+ */
 function useTooltipContext() {
   const context = React.useContext(TooltipContext);
 
@@ -131,6 +145,12 @@ function useTooltipContext() {
   return context;
 }
 
+/**
+ * 为提示框的触发元素与内容提供共享交互上下文。
+ *
+ * @param props 组件接收的属性。
+ * @returns 供页面渲染的组件内容。
+ */
 export function Tooltip({ children, ...props }: TooltipProviderProps) {
   const tooltip = useTooltip(props);
 
@@ -154,6 +174,13 @@ export function Tooltip({ children, ...props }: TooltipProviderProps) {
   );
 }
 
+/**
+ * 连接提示框触发元素的鼠标、焦点与定位属性。
+ *
+ * @param props 组件接收的属性。
+ * @param propRef propRef 参数。
+ * @returns 供页面渲染的组件内容。
+ */
 export const TooltipTrigger = React.forwardRef<
   HTMLElement,
   TooltipTriggerProps
@@ -195,6 +222,13 @@ export const TooltipTrigger = React.forwardRef<
   );
 });
 
+/**
+ * 在正确位置渲染提示内容，并同步提示框的打开状态。
+ *
+ * @param props 组件接收的属性。
+ * @param propRef propRef 参数。
+ * @returns 供页面渲染的组件内容。
+ */
 export const TooltipContent = React.forwardRef<
   HTMLDivElement,
   TooltipContentProps

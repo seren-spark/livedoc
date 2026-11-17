@@ -1,4 +1,7 @@
 /**
+ * @file 分页目录索引。维护跨页标题索引，支持目录查询和跳转。
+ */
+/**
  * TOCIndexManager - 目录索引管理器
  *
  * 管理分页文档的目录索引：
@@ -19,12 +22,19 @@ export class TOCIndexManager {
   private docId: string;
   private tocIndex: TOCIndex | null = null;
 
+  /**
+   * 初始化实例依赖与本地状态。
+   *
+   * @param docId 知识文档标识。
+   */
   constructor(docId: string) {
     this.docId = docId;
   }
 
   /**
    * 加载目录索引
+   *
+   * @returns 整理后的结果列表。
    */
   async load(): Promise<TOCItem[]> {
     this.tocIndex = await pagedDocDB.getTOCIndex(this.docId);
@@ -43,6 +53,8 @@ export class TOCIndexManager {
 
   /**
    * 获取所有目录项
+   *
+   * @returns 整理后的结果列表。
    */
   getItems(): TOCItem[] {
     return this.tocIndex?.items || [];
@@ -50,6 +62,9 @@ export class TOCIndexManager {
 
   /**
    * 更新指定页的目录项
+   *
+   * @param pageNum 请求的页码。
+   * @param headings 文档中收集到的标题节点。
    */
   async updatePageHeadings(
     pageNum: number,
@@ -91,6 +106,10 @@ export class TOCIndexManager {
 
   /**
    * 从 ProseMirror 文档中提取标题
+   *
+   * @param doc 当前文档或编辑器文档节点。
+   * @param startPos 本次处理区间的起始位置。
+   * @returns 整理后的结果列表。
    */
   extractHeadings(doc: any, startPos = 0): HeadingInfo[] {
     const headings: HeadingInfo[] = [];
@@ -112,6 +131,9 @@ export class TOCIndexManager {
 
   /**
    * 查找目录项
+   *
+   * @param itemId item 对应的唯一标识。
+   * @returns TOCItem 类型的处理结果。
    */
   findItem(itemId: string): TOCItem | undefined {
     return this.tocIndex?.items.find((item) => item.id === itemId);
@@ -119,6 +141,9 @@ export class TOCIndexManager {
 
   /**
    * 获取指定页的所有标题
+   *
+   * @param pageNum 请求的页码。
+   * @returns 整理后的结果列表。
    */
   getPageHeadings(pageNum: number): TOCItem[] {
     return (
@@ -129,6 +154,9 @@ export class TOCIndexManager {
   /**
    * 重建整个目录索引
    * 用于文档结构大变化时
+   *
+   * @param editor 当前 TipTap 编辑器实例。
+   * @param pageRanges 页面与原文区间的对应关系。
    */
   async rebuild(
     editor: Editor,

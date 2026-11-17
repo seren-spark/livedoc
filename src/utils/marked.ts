@@ -1,3 +1,6 @@
+/**
+ * @file Markdown 解析配置。集中设置 marked 的解析与渲染行为。
+ */
 import { Marked } from 'marked';
 const marked = new Marked();
 

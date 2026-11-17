@@ -1,3 +1,6 @@
+/**
+ * @file 管理筛选器。组织管理筛选器的界面与交互。
+ */
 // 表格上方导航
 
 import { Button, Input, Select, Dropdown, Row, Col } from 'antd';
@@ -33,6 +36,12 @@ interface FilterProps {
   setPageSize: (size: number) => void;
   setSearchText: (text: string) => void;
 }
+/**
+ * 呈现管理筛选器，并连接对应状态与用户操作。
+ *
+ * @param props 组件接收的属性。
+ * @returns 供页面渲染的组件内容。
+ */
 const Filter: React.FC<FilterProps> = ({
   pageMenu = OriginalPage,
   menuItems,

@@ -1,3 +1,6 @@
+/**
+ * @file 前台右侧栏。组织前台右侧栏的界面与交互。
+ */
 import {
   Col,
   Space,
@@ -22,6 +25,12 @@ const hotTopics = [
 interface RightSideProps {
   children?: React.ReactNode;
 }
+/**
+ * 检查元素是否处于当前可视区域。
+ *
+ * @param element 需要定位或滚动到的 DOM 元素。
+ * @returns 条件是否满足的判断结果。
+ */
 const isElementInView = (element: HTMLElement): boolean => {
   if (!element) return false;
 
@@ -44,10 +53,19 @@ const recommendAuthors = [
     avatar: 'https://avatars.githubusercontent.com/u/3?v=4',
   },
 ];
+/**
+ * 呈现前台右侧栏，并连接对应状态与用户操作。
+ *
+ * @param props 组件接收的属性。
+ * @returns 供页面渲染的组件内容。
+ */
 export default function RightSide({ children }: RightSideProps) {
   const sidebarRef = useRef<HTMLDivElement>(null);
   const [isTop, setIsTop] = useState<boolean>(false);
   useEffect(() => {
+    /**
+     * 检测侧栏是否进入视口，并更新悬浮展示状态。
+     */
     const checkSidebarInView = () => {
       if (sidebarRef.current) {
         const isInView = isElementInView(sidebarRef.current);

@@ -1,3 +1,6 @@
+/**
+ * @file Markdown 渲染工具。将 Markdown 文本转换为页面展示内容。
+ */
 export const mockMarked = {
   use: (config: null) => {
     mockMarked.config = config;

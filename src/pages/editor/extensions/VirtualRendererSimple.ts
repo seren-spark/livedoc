@@ -1,3 +1,6 @@
+/**
+ * @file 简化虚拟渲染。根据滚动范围和块高度控制可见块，并监听节点高度变化。
+ */
 import { Extension } from '@tiptap/core';
 import { Plugin, PluginKey } from '@tiptap/pm/state';
 
@@ -19,6 +22,11 @@ const BLOCK_TYPES = [
   'blockquote',
 ];
 
+/**
+ * 为编辑块生成本地唯一标识。
+ *
+ * @returns 整理后的文本或标识。
+ */
 function genId() {
   return `blk_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
 }
@@ -33,6 +41,9 @@ class Metrics {
     listItem: 40,
     blockquote: 80,
   };
+  /**
+   * 根据当前高度缓存重新计算块的位置。
+   */
   recalcPos() {
     let top = 0;
     this.pos = new Map();
@@ -42,12 +53,33 @@ class Metrics {
     }
   }
   pos = new Map<string, number>();
+  /**
+   * 读取指定块相对文档顶部的位置。
+   *
+   * @param id 目标记录的唯一标识。
+   * @returns 计算得到的数值。
+   */
   getTop(id: string) {
     return this.pos.get(id) ?? 0;
   }
+  /**
+   * 读取指定块或缓存项的高度。
+   *
+   * @param id 目标记录的唯一标识。
+   * @param type 当前数据或节点类型（可选）。
+   * @returns 计算得到的数值。
+   */
   getHeight(id: string, type?: string) {
     return this.heights.get(id) ?? this.estimate[type || 'paragraph'] ?? 80;
   }
+  /**
+   * 根据滚动位置求出需要渲染的块区间。
+   *
+   * @param scrollTop 容器当前的垂直滚动位置。
+   * @param vh 当前视口高度。
+   * @param buf 当前输入的二进制缓冲区。
+   * @returns 整理后的状态与操作结果对象。
+   */
   range(scrollTop: number, vh: number, buf: number) {
     if (!this.order.length) return { s: 0, e: -1 };
     let l = 0,
@@ -79,10 +111,20 @@ const key = new PluginKey('simpleVirtual');
 export default Extension.create({
   name: 'virtualRendererSimple',
 
+  /**
+   * 声明当前 TipTap 扩展的默认选项。
+   *
+   * @returns 整理后的状态与操作结果对象。
+   */
   addOptions() {
     return { buffer: 5, typingPause: 150 };
   },
 
+  /**
+   * 向适用的 TipTap 节点补充共享属性定义。
+   *
+   * @returns 供后续操作使用的回调或清理函数；未找到或不可用时可能为空。
+   */
   addGlobalAttributes() {
     return [
       {
@@ -102,6 +144,9 @@ export default Extension.create({
   },
 
   // 🔥 添加 CSS 样式
+  /**
+   * 🔥 添加 CSS 样式
+   */
   onBeforeCreate() {
     if (typeof document === 'undefined') return;
 
@@ -123,6 +168,11 @@ export default Extension.create({
     `;
     document.head.appendChild(style);
   },
+  /**
+   * 注册底层 ProseMirror 插件以处理事务、事件或视图装饰。
+   *
+   * @returns 整理后的结果列表。
+   */
   addProseMirrorPlugins() {
     const buffer = this.options.buffer;
     const typingPause: number = this.options.typingPause ?? 150;
@@ -132,6 +182,14 @@ export default Extension.create({
     return [
       new Plugin({
         key,
+        /**
+         * 在原事务处理后补充必要的节点属性或结构调整。
+         *
+         * @param tx 当前数据库事务执行器。
+         * @param _old 回调签名保留的参数，当前实现不使用。
+         * @param ns 检查点命名空间。
+         * @returns import("E:/LiveDoc/livedoc/node_modules/prosemirror-state/dist/index").Transaction 类型的处理结果。
+         */
         appendTransaction(tx, _old, ns) {
           if (tx.some((t) => t.getMeta('autoId'))) return null;
           if (!tx.some((t) => t.docChanged)) return null;
@@ -155,11 +213,20 @@ export default Extension.create({
           }
           return null;
         },
+        /**
+         * 创建插件视图并注册滚动、尺寸或节点观察逻辑。
+         *
+         * @param view ProseMirror 编辑器视图。
+         * @returns 整理后的状态与操作结果对象。
+         */
         view(view) {
           viewDom = view.dom as HTMLElement;
           console.log(viewDom, 'viewDom');
 
           /* scroll handler */
+          /**
+           * 根据当前滚动范围更新虚拟渲染结果。
+           */
           const applyVirtual = () => {
             const top = viewDom.scrollTop;
             const vh = viewDom.clientHeight;
@@ -209,6 +276,9 @@ export default Extension.create({
               `| 无ID: ${noIdCount}, 无DOM: ${noDomCount}`,
             );
           };
+          /**
+           * 在滚动时更新虚拟渲染的可见范围。
+           */
           const onScroll = () => {
             cancelAnimationFrame(raf);
             raf = requestAnimationFrame(applyVirtual);
@@ -218,6 +288,9 @@ export default Extension.create({
           viewDom.addEventListener('keydown', () => {
             typing = true;
           });
+          /**
+           * 在输入停顿后恢复虚拟渲染更新。
+           */
           const stop = () => {
             setTimeout(() => {
               typing = false;
@@ -235,6 +308,9 @@ export default Extension.create({
             metrics.recalcPos();
             applyVirtual();
           });
+          /**
+           * 监听可见块的实际高度变化，修正虚拟布局缓存。
+           */
           const observeHeights = () => {
             viewDom
               .querySelectorAll('[data-block-id]')
@@ -242,6 +318,9 @@ export default Extension.create({
           };
           observeHeights();
           /* initial cache */
+          /**
+           * 收集当前文档块顺序，并初始化对应的高度与位置缓存。
+           */
           const buildOrder = () => {
             const o: string[] = [];
             view.state.doc.descendants((n) => {
@@ -255,11 +334,17 @@ export default Extension.create({
           buildOrder();
           applyVirtual();
           return {
+            /**
+             * 重建块顺序、重新监听高度并刷新可见范围。
+             */
             update() {
               buildOrder();
               observeHeights();
               applyVirtual();
             },
+            /**
+             * 组件或插件销毁时解绑监听、观察器与定时任务。
+             */
             destroy() {
               ro.disconnect();
               viewDom.removeEventListener('scroll', onScroll);

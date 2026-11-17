@@ -1,3 +1,6 @@
+/**
+ * @file 研究进度 API。读取图任务的研究说明、来源覆盖和章节进度。
+ */
 import { ragClient } from './rag';
 export interface ResearchBrief {
   goal: string;
@@ -41,6 +44,14 @@ export interface ResearchDetails {
   total: number;
   next_offset: number | null;
 }
+/**
+ * 读取指定图任务的研究说明、笔记和覆盖进度。
+ *
+ * @param runId run 对应的唯一标识。
+ * @param questionId question 对应的唯一标识（可选）。
+ * @param offset 从原文或分页数据的哪个位置开始读取。
+ * @returns 研究说明、覆盖检查结果及当前页的研究笔记。
+ */
 export async function getAgentResearch(
   runId: string,
   questionId?: string,

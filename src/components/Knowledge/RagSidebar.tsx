@@ -1,3 +1,6 @@
+/**
+ * @file 知识检索侧栏。选择检索范围、查询知识文档，并将引用插入编辑器。
+ */
 import { useEffect, useMemo, useState } from 'react';
 import {
   Alert,
@@ -51,10 +54,22 @@ const visibilityColor: Record<string, string> = {
   public: 'green',
 };
 
+/**
+ * 检查编辑器实例是否仍可读取，避免在销毁后访问。
+ *
+ * @param editor 当前 TipTap 编辑器实例。
+ * @returns 条件是否满足的判断结果。
+ */
 function canReadEditor(editor: Editor | null) {
   return Boolean(editor && !editor.isDestroyed && editor.schema?.nodes && editor.state?.doc);
 }
 
+/**
+ * 安全读取编辑器当前的纯文本内容。
+ *
+ * @param editor 当前 TipTap 编辑器实例。
+ * @returns 整理后的文本或标识。
+ */
 function getEditorPlainText(editor: Editor | null) {
   if (!canReadEditor(editor)) {
     return '';
@@ -68,6 +83,12 @@ function getEditorPlainText(editor: Editor | null) {
   }
 }
 
+/**
+ * 从光标附近提取有限长度的前后文。
+ *
+ * @param editor 当前 TipTap 编辑器实例。
+ * @returns 整理后的状态与操作结果对象。
+ */
 function pickCursorContext(editor: Editor | null) {
   if (!canReadEditor(editor)) {
     return { selectedText: '', before: '', after: '', text: '' };
@@ -82,6 +103,13 @@ function pickCursorContext(editor: Editor | null) {
   return { selectedText, before, after, text };
 }
 
+/**
+ * 把界面选择的空间与文档转换为检索范围。
+ *
+ * @param range 需要读取、编辑或映射的区间。
+ * @param selectedIds selected 对应的标识集合。
+ * @returns KnowledgeScope 类型的处理结果。
+ */
 function buildScope(range: RangeKey, selectedIds: string[]): KnowledgeScope {
   const scope: KnowledgeScope = {
     public: range === 'all' || range === 'public',
@@ -96,6 +124,12 @@ function buildScope(range: RangeKey, selectedIds: string[]): KnowledgeScope {
   return scope;
 }
 
+/**
+ * 呈现知识检索侧栏，并连接对应状态与用户操作。
+ *
+ * @param props 组件接收的属性。
+ * @returns 供页面渲染的组件内容。
+ */
 export default function RagSidebar({ editor, title }: RagSidebarProps) {
   const [docs, setDocs] = useState<DocumentRecord[]>([]);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -105,11 +139,19 @@ export default function RagSidebar({ editor, title }: RagSidebarProps) {
   const [loadingDocs, setLoadingDocs] = useState(false);
   const [searching, setSearching] = useState(false);
 
+  /**
+   * 按当前空间和筛选条件计算可选文档。
+   *
+   * @returns 知识文档记录列表。
+   */
   const filteredDocs = useMemo(() => {
     if (range === 'all') return docs;
     return docs.filter((doc) => doc.visibility === range);
   }, [docs, range]);
 
+  /**
+   * 加载当前范围内的知识文档并更新列表。
+   */
   const loadDocs = async () => {
     setLoadingDocs(true);
     try {
@@ -136,6 +178,9 @@ export default function RagSidebar({ editor, title }: RagSidebarProps) {
     setQuery(nextQuery || '检索当前文章需要引用的资料');
   }, [editor, title]);
 
+  /**
+   * 提交当前问题与范围，更新检索引用和错误状态。
+   */
   const runSearch = async () => {
     const normalizedQuery = query.trim();
     if (!normalizedQuery) {
@@ -165,6 +210,11 @@ export default function RagSidebar({ editor, title }: RagSidebarProps) {
     }
   };
 
+  /**
+   * 将选中的来源引用插入当前编辑器位置。
+   *
+   * @param citation 包含来源、原文位置与内容的检索引用。
+   */
   const insertCitation = (citation: Citation) => {
     if (!editor) {
       message.warning('编辑器尚未就绪');

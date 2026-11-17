@@ -1,3 +1,6 @@
+/**
+ * @file 文档 Agent API。查询能力、提交反馈、恢复候选并消费 SSE 写作事件。
+ */
 import { ragBaseURL, ragClient } from './rag';
 import { readSseStream } from './sse';
 import type {
@@ -50,9 +53,23 @@ export interface AgentCapabilities {
     total_seconds: number;
   };
 }
+/**
+ * 查询服务端当前启用的 Agent 功能与可用能力。
+ *
+ * @returns 当前部署与个人设置共同决定的可用能力。
+ */
 export async function agentCapabilities(): Promise<AgentCapabilities> {
   return (await ragClient.get('/ai/agent/capabilities')).data;
 }
+/**
+ * 提交候选采纳、拒绝或回答评价等反馈。
+ *
+ * @param runId run 对应的唯一标识。
+ * @param action 本次请求执行的操作类型。
+ * @param editId edit 对应的唯一标识（可选）。
+ * @param documentId document 对应的唯一标识（可选）。
+ * @returns any 类型的处理结果。
+ */
 export async function agentFeedback(
   runId: string,
   action: string,
@@ -87,6 +104,13 @@ export interface StoredAgentRun {
     };
   };
 }
+/**
+ * 基于当前编辑器快照恢复历史任务候选。
+ *
+ * @param runId run 对应的唯一标识。
+ * @param editorJson 当前编辑器文档的 JSON 内容。
+ * @returns StoredAgentRun 类型的处理结果。
+ */
 export async function restoreAgentRun(
   runId: string,
   editorJson: Record<string, unknown>,
@@ -97,6 +121,13 @@ export async function restoreAgentRun(
     })
   ).data;
 }
+/**
+ * 发送编辑器快照与写作需求，解析返回的 SSE 事件。
+ *
+ * @param input 本次操作的输入数据。
+ * @param onEvent 接收到完整事件时调用的处理函数。
+ * @param signal 取消信号，用于中止请求和后台处理。
+ */
 export async function streamDocumentAgent(
   input: AgentRequest,
   onEvent: (event: AgentEvent) => void,

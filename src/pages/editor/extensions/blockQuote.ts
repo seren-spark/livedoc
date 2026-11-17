@@ -1,3 +1,6 @@
+/**
+ * @file 引用块扩展。补充引用块的节点行为及事务处理。
+ */
 // import { Extension } from '@tiptap/core';
 // import { Editor } from '@tiptap/core';
 // import { Node as ProseMirrorNode } from 'prosemirror-model';
@@ -438,6 +441,11 @@ export const AutoMergeBlockquotes =
   Extension.create<AutoMergeBlockquotesOptions>({
     name: 'autoMergeBlockquotes',
 
+    /**
+     * 声明当前 TipTap 扩展的默认选项。
+     *
+     * @returns AutoMergeBlockquotesOptions 类型的处理结果。
+     */
     addOptions(): AutoMergeBlockquotesOptions {
       return {
         enabled: true,
@@ -448,6 +456,11 @@ export const AutoMergeBlockquotes =
       };
     },
 
+    /**
+     * 注册底层 ProseMirror 插件以处理事务、事件或视图装饰。
+     *
+     * @returns 整理后的结果列表；未找到或不可用时可能为空。
+     */
     addProseMirrorPlugins() {
       const options = this.options;
 
@@ -456,12 +469,24 @@ export const AutoMergeBlockquotes =
           key: autoMergePluginKey,
 
           state: {
+            /**
+             * 创建插件或本地存储的初始状态。
+             *
+             * @returns 整理后的状态与操作结果对象；未找到或不可用时可能为空。
+             */
             init() {
               return {
                 timeoutId: null as NodeJS.Timeout | null,
               };
             },
 
+            /**
+             * 响应文档事务并清理旧的延迟处理，保持引用块插件状态。
+             *
+             * @param tr 本次编辑器事务及其位置映射。
+             * @param pluginState 当前 ProseMirror 插件保存的状态。
+             * @returns 整理后的状态与操作结果对象；未找到或不可用时可能为空。
+             */
             apply(
               tr: Transaction,
               pluginState: { timeoutId: NodeJS.Timeout | null },
@@ -485,6 +510,14 @@ export const AutoMergeBlockquotes =
             },
           },
 
+          /**
+           * 在原事务处理后补充必要的节点属性或结构调整。
+           *
+           * @param transactions 本次编辑器事务及其位置映射。
+           * @param oldState 当前 ProseMirror 文档与选区状态。
+           * @param newState 当前 ProseMirror 文档与选区状态。
+           * @returns Transaction 类型的处理结果。
+           */
           appendTransaction(
             transactions: readonly Transaction[],
             oldState: EditorState,
@@ -820,6 +853,12 @@ export const AutoMergeBlockquotes =
 
 //   return modified ? tr : null;
 // }
+/**
+ * 查找可合并的相邻引用块，并构造相应编辑器事务。
+ *
+ * @param state 当前 ProseMirror 文档与选区状态。
+ * @returns Transaction 类型的处理结果。
+ */
 function autoMergeBlockquotes(state: EditorState): Transaction | null {
   console.log('执行了');
   const tr = state.tr;

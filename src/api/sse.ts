@@ -1,4 +1,15 @@
-/** Read complete SSE events while leaving protocol validation to each caller. */
+/**
+ * @file SSE 消息解析。将网络分片还原为完整事件，处理跨分片消息与流结束。
+ */
+/**
+ * 把网络分片还原为完整 SSE 消息，再由调用方校验业务事件。
+ *
+ *  Read complete SSE events while leaving protocol validation to each caller.
+ *
+ * @param body 请求正文或待提交的数据。
+ * @param onEvent 接收到完整事件时调用的处理函数。
+ * @param eventField 从事件中提取的字段名。
+ */
 export async function readSseStream(
   body: ReadableStream<Uint8Array>,
   onEvent: (event: string | undefined, data: string) => void | Promise<void>,
@@ -8,6 +19,11 @@ export async function readSseStream(
   const decoder = new TextDecoder();
   let buffer = '';
 
+  /**
+   * 解析一条完整 SSE 消息的事件名和多行数据，再交给订阅者。
+   *
+   * @param frame 一条完整的 SSE 消息。
+   */
   const consume = async (frame: string) => {
     const lines = frame.split('\n');
     const events = lines.filter((line) => line.startsWith('event:'));

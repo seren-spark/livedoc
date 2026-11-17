@@ -1,3 +1,6 @@
+/**
+ * @file 页面顶部导航。组织页面顶部导航的界面与交互。
+ */
 import {
   Layout,
   Button,
@@ -21,6 +24,11 @@ import './index.scss'; // 引入样式
 
 const { Header } = Layout;
 
+/**
+ * 呈现页面顶部导航，并连接对应状态与用户操作。
+ *
+ * @returns 供页面渲染的组件内容。
+ */
 function LayoutBar() {
   const [collapsed, setCollapsed] = useState(false);
 

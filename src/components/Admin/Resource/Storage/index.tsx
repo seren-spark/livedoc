@@ -1,3 +1,6 @@
+/**
+ * @file 存储统计。组织存储统计的界面与交互。
+ */
 import {
   FolderOutlined,
   FileImageOutlined,
@@ -10,6 +13,11 @@ import { Progress, Typography } from 'antd';
 import { useState } from 'react';
 
 const { Title, Text } = Typography;
+/**
+ * 呈现存储统计，并连接对应状态与用户操作。
+ *
+ * @returns 供页面渲染的组件内容。
+ */
 function Storage() {
   const [selectedStorage, setSelectedStorage] = useState<number | null>(null);
 

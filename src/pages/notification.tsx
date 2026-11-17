@@ -1,3 +1,6 @@
+/**
+ * @file 通知。连接路由与对应业务组件，呈现通知的界面与交互。
+ */
 // @ts-nocheck
 // import '@/pages/notification/styles/index.scss';
 import { useScrollVisibility } from '@/hooks/useScrollVisibility';
@@ -57,6 +60,11 @@ const StyledNav = styled.nav`
   }
 `;
 
+/**
+ * 呈现通知，并连接对应状态与用户操作。
+ *
+ * @returns 供页面渲染的组件内容。
+ */
 export default function Nofication() {
   const visible = useScrollVisibility();
   return (

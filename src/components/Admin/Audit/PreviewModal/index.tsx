@@ -1,3 +1,6 @@
+/**
+ * @file 文章审核预览。组织文章审核预览的界面与交互。
+ */
 import type React from 'react';
 import { useState } from 'react';
 import {
@@ -66,6 +69,12 @@ const previewTypeItems = [
   '其他',
 ];
 
+/**
+ * 呈现文章审核预览，并连接对应状态与用户操作。
+ *
+ * @param props 组件接收的属性。
+ * @returns 供页面渲染的组件内容。
+ */
 const PreviewModal: React.FC<ArticleReviewModalProps> = ({
   visible,
   article,
@@ -80,6 +89,11 @@ const PreviewModal: React.FC<ArticleReviewModalProps> = ({
   >(undefined);
   const [reviewReason, setReviewReason] = useState('');
 
+  /**
+   * 提交当前条目的审核结果并更新列表状态。
+   *
+   * @param values 待转换或去重的值集合。
+   */
   const handleReview = async (values: {
     status: 'approved' | 'rejected';
     reason: string;
@@ -102,6 +116,12 @@ const PreviewModal: React.FC<ArticleReviewModalProps> = ({
     }
   };
 
+  /**
+   * 将业务状态映射为对应的标签颜色。
+   *
+   * @param status 本次需要记录或切换到的状态。
+   * @returns "success" | "error" | "warning" | "default" 类型的处理结果。
+   */
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'approved':
@@ -115,6 +135,12 @@ const PreviewModal: React.FC<ArticleReviewModalProps> = ({
     }
   };
 
+  /**
+   * 将业务状态转换为界面可读的文字。
+   *
+   * @param status 本次需要记录或切换到的状态。
+   * @returns "已通过" | "已拒绝" | "待审核" | "未知" 类型的处理结果。
+   */
   const getStatusText = (status: string) => {
     switch (status) {
       case 'approved':
